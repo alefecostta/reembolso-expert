@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA TRADER | Solicitud de Reembolso</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Glow Effects -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-container">
+                <div class="logo-text">
+                    <span class="logo-title">Soporte al Cliente</span>
+                </div>
+            </div>
+            <!-- Acceso Soporte oculto para el cliente. Se ingresa mediante doble clic en el footer o #admin en URL -->
+            <button id="admin-access-btn" class="btn btn-secondary btn-sm" style="display: none;" onclick="openAdminLogin()"></button>
+        </header>
+
+        <!-- Main Workspace (Forms / Admin) -->
+        <main class="main-content">
+            
+            <!-- CLIENT FORM SECTION -->
+            <section id="client-section" class="card-glass">
+                <div class="card-header-accent"></div>
+                
+                <div class="card-body">
+                    <div class="form-intro">
+                        <h1>Solicitud de Reembolso Manual</h1>
+                        <p>Lamentamos que decidas no continuar. Por favor, completa este formulario para procesar tu reembolso de forma manual y segura.</p>
+                    </div>
+
+                    <!-- Step Progress Indicator -->
+                    <div class="step-indicator-container">
+                        <div class="step-progress-line">
+                            <div class="step-progress-bar" id="step-progress-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="step-nodes">
+                            <div class="step-node active" data-step="1">
+                                <span class="step-number">1</span>
+                                <span class="step-label">Tus Datos</span>
+                            </div>
+                            <div class="step-node" data-step="2">
+                                <span class="step-number">2</span>
+                                <span class="step-label">Productos</span>
+                            </div>
+                            <div class="step-node" data-step="3">
+                                <span class="step-number">3</span>
+                                <span class="step-label">Motivo</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Personal Info -->
+                    <div class="step-content active" id="step-1">
+                        <h2 class="step-title">1. Información de tu Cuenta</h2>
+                        <p class="step-desc">Ingresa los datos con los cuales realizaste la compra.</p>
+                        
+                        <div class="form-group">
+                            <label for="client-name">Nombre Completo <span class="required">*</span></label>
+                            <input type="text" id="client-name" placeholder="Ej. Juan Pérez" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="client-email">Correo Electrónico de Compra <span class="required">*</span></label>
+                            <input type="email" id="client-email" placeholder="juan@ejemplo.com" required>
+                            <small class="form-help">Debe ser el mismo correo que utilizaste en la pasarela de pago.</small>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Product Selection -->
+                    <div class="step-content" id="step-2">
+                        <h2 class="step-title">2. ¿Qué producto deseas reembolsar?</h2>
+                        <p class="step-desc">Puedes seleccionar uno o más productos de los que compraste.</p>
+                        
+                        <div class="product-grid">
+                            <!-- Product 1 -->
+                            <div class="product-card" data-product-id="6587709" onclick="toggleProduct(this)">
+                                <div class="product-selection-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <img src="assets/aipro.png" alt="AI PRO" class="product-image">
+                                <div class="product-info">
+                                    <h3 class="product-name">AI PRO - Empieza aquí</h3>
+                                </div>
+                            </div>
+
+                            <!-- Product 2 -->
+                            <div class="product-card" data-product-id="6587810" onclick="toggleProduct(this)">
+                                <div class="product-selection-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <img src="assets/titan.png" alt="IA Titan" class="product-image">
+                                <div class="product-info">
+                                    <h3 class="product-name">IA TITAN</h3>
+                                </div>
+                            </div>
+
+                            <!-- Product 3 -->
+                            <div class="product-card" data-product-id="6587831" onclick="toggleProduct(this)">
+                                <div class="product-selection-indicator">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <img src="assets/vip.png" alt="Grupo VIP de Alumnos" class="product-image">
+                                <div class="product-info">
+                                    <h3 class="product-name">Grupo VIP de Alumnos</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="product-error" class="validation-error-text" style="display: none;">Deberías elegir al menos un producto para solicitar reembolso.</div>
+                    </div>
+
+                    <!-- Step 3: Reason & Complaint -->
+                    <div class="step-content" id="step-3">
+                        <h2 class="step-title">3. ¿Por qué solicitas el reembolso?</h2>
+                        <p class="step-desc">Tus comentarios nos ayudan a mejorar el producto.</p>
+                        
+                        <div class="form-group">
+                            <label for="refund-reason">Razón Principal de Devolución <span class="required">*</span></label>
+                            <select id="refund-reason">
+                                <option value="" disabled selected>Selecciona una opción...</option>
+                                <option value="no-cumplio">El producto no cumplió mis expectativas</option>
+                                <option value="dificil-usar">Es muy difícil de usar o no entendí la IA</option>
+                                <option value="falta-tiempo">No tengo tiempo para usarlo/aplicarlo</option>
+                                <option value="problemas-economicos">Dificultad económica actual</option>
+                                <option value="otro">Otra razón (Detallar abajo)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="client-feedback">Tu Reclamo o Comentarios <span class="required">*</span></label>
+                            <textarea id="client-feedback" rows="4" placeholder="Cuéntanos más detalladamente qué sucedió y cómo podemos mejorar..." required></textarea>
+                        </div>
+
+                        <div class="form-checkbox-group">
+                            <input type="checkbox" id="terms-agree" required>
+                            <label for="terms-agree">
+                                Confirmo que la información ingresada es correcta y entiendo que perderé acceso inmediato a los productos seleccionados una vez que se envíe esta solicitud.
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Form Controls -->
+                    <div class="form-controls">
+                        <button type="button" id="prev-btn" class="btn btn-secondary" style="display: none;" onclick="navigateSteps(-1)">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-left">
+                                <line x1="19" y1="12" x2="5" y2="12"></line>
+                                <polyline points="12 19 5 12 12 5"></polyline>
+                            </svg>
+                            Anterior
+                        </button>
+                        <button type="button" id="next-btn" class="btn btn-primary" onclick="navigateSteps(1)">
+                            Siguiente
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-right">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SUCCESS VIEW -->
+            <section id="success-section" class="card-glass" style="display: none;">
+                <div class="card-header-accent success-accent"></div>
+                <div class="card-body success-body text-center">
+                    <div class="success-icon-wrap">
+                        <div class="success-icon-bg"></div>
+                        <svg class="success-checkmark" viewBox="0 0 52 52">
+                            <circle class="success-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                            <path class="success-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                        </svg>
+                    </div>
+                    <h1>¡Solicitud Recibida con Éxito!</h1>
+                    <p class="success-text">Hemos registrado tu reclamo y los datos de devolución. Nuestro equipo revisará los detalles del producto de forma manual.</p>
+                    
+                    <div class="receipt-card">
+                        <div class="receipt-row">
+                            <span class="receipt-label">Ticket ID:</span>
+                            <span class="receipt-value" id="receipt-id">#0000</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Cliente:</span>
+                            <span class="receipt-value" id="receipt-name">Juan Pérez</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Correo Electrónico:</span>
+                            <span class="receipt-value" id="receipt-email">juan@ejemplo.com</span>
+                        </div>
+                        <div class="receipt-row">
+                            <span class="receipt-label">Productos Seleccionados:</span>
+                            <span class="receipt-value" id="receipt-products">AI PRO</span>
+                        </div>
+                    </div>
+                    
+                    <div class="success-actions">
+                        <p class="notice-info">Se te enviará una confirmación o contacto al correo electrónico ingresado en un plazo máximo de 48-72 horas hábiles.</p>
+                        <button type="button" class="btn btn-primary btn-wide" onclick="resetForm()">
+                            Volver al Inicio
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>Todos los reembolsos se analizan en un plazo de hasta 48 horas hábiles. | @MartinRezende</p>
+        </footer>
+    </div>
+
+    <!-- App JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
