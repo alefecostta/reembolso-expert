@@ -266,6 +266,17 @@ async function submitRefundForm() {
             document.getElementById('receipt-email').innerText = email;
             document.getElementById('receipt-products').innerText = selectedProducts.map(p => p.name).join(', ');
             
+            // Populate Telegram message details
+            const telegramMsg = `Hola, solicito el reembolso de mi compra.
+Ticket: ${ticketId}
+Cliente: ${name}
+Correo: ${email}
+Productos: ${selectedProducts.map(p => p.name).join(', ')}
+Motivo: ${reasonText}
+Comentarios: "${feedback}"`;
+            
+            document.getElementById('telegram-message-box').value = telegramMsg;
+
             // Display Success screen
             document.getElementById('client-section').style.display = 'none';
             document.getElementById('success-section').style.display = 'block';
@@ -275,11 +286,40 @@ async function submitRefundForm() {
         }
     } catch (err) {
         console.error('Error submitting form:', err);
-        alert('Error de conexión. Inténtalo más tarde.');
+        alert('Error de conexão. Inténtalo más tarde.');
     } finally {
         nextBtn.disabled = false;
         nextBtn.innerHTML = originalText;
     }
+}
+
+function redirectToTelegram() {
+    const messageText = document.getElementById('telegram-message-box').value;
+    
+    // Copy message to clipboard
+    navigator.clipboard.writeText(messageText).then(() => {
+        // Show success indicator on button
+        const btn = document.getElementById('telegram-redirect-btn');
+        const originalHTML = btn.innerHTML;
+        
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="icon-left" style="margin-right: 8px;">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            ¡Mensaje Copiado! Redirigiendo...
+        `;
+        
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+        }, 2000);
+
+        // Open Telegram chat
+        window.open('https://t.me/MartinRezende', '_blank');
+    }).catch(err => {
+        console.error('Error copying text:', err);
+        // Fallback: open anyway if copy fails
+        window.open('https://t.me/MartinRezende', '_blank');
+    });
 }
 
 function resetForm() {
