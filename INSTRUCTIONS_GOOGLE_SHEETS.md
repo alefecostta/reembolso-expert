@@ -15,12 +15,6 @@ Para remover completamente a dependência do Cloudflare e gerenciar todas as sol
 const SENHA_ADMIN = "reembolso"; // Senha do seu painel administrativo
 
 function doPost(e) {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
-
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const data = JSON.parse(e.postData.contents);
@@ -31,8 +25,7 @@ function doPost(e) {
       const password = data.password;
       if (password !== SENHA_ADMIN && password !== "admin") {
         return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-          .setMimeType(ContentService.MimeType.JSON)
-          .setHeaders(headers);
+          .setMimeType(ContentService.MimeType.JSON);
       }
       
       const rows = sheet.getDataRange().getValues();
@@ -55,8 +48,7 @@ function doPost(e) {
       }
       
       return ContentService.createTextOutput(JSON.stringify(list))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     // 2. AÇÃO: ATUALIZAR STATUS
@@ -64,8 +56,7 @@ function doPost(e) {
       const password = data.password;
       if (password !== SENHA_ADMIN && password !== "admin") {
         return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-          .setMimeType(ContentService.MimeType.JSON)
-          .setHeaders(headers);
+          .setMimeType(ContentService.MimeType.JSON);
       }
       
       const id = data.id;
@@ -82,8 +73,7 @@ function doPost(e) {
       }
       
       return ContentService.createTextOutput(JSON.stringify({ result: updated ? "success" : "not_found" }))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     // 3. AÇÃO: EXCLUIR REGISTRO
@@ -91,8 +81,7 @@ function doPost(e) {
       const password = data.password;
       if (password !== SENHA_ADMIN && password !== "admin") {
         return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-          .setMimeType(ContentService.MimeType.JSON)
-          .setHeaders(headers);
+          .setMimeType(ContentService.MimeType.JSON);
       }
       
       const id = data.id;
@@ -108,8 +97,7 @@ function doPost(e) {
       }
       
       return ContentService.createTextOutput(JSON.stringify({ result: deleted ? "success" : "not_found" }))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // REGISTRO PADRÃO: INSERIR SOLICITAÇÃO (quando vem do formulário do cliente)
@@ -129,23 +117,17 @@ function doPost(e) {
     ]);
     
     return ContentService.createTextOutput(JSON.stringify({ result: "success", id: data.id }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({ error: "Utilize requisições POST para interagir com a API." }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-    });
+    .setMimeType(ContentService.MimeType.JSON);
 }
 ```
 
