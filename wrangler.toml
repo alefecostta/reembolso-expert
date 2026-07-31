@@ -1,6 +1,0 @@
-name = "reembolso-expert"
-pages_build_output_dir = "."
-
-[[kv_namespaces]]
-binding = "REFUNDS"
-id = "54a8124cb58742a6b3abe45532216ce5"
