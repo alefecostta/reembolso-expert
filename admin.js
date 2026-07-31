@@ -2,12 +2,9 @@
    IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
    ========================================================================== */
 
-// Configure API base URL depending on platform hosting
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? '' // Use local relative paths for localhost server testing
-    : (window.location.hostname.includes('workers.dev') || window.location.hostname.includes('pages.dev')
-        ? '' // Use relative paths for native Cloudflare hosting
-        : 'https://reembolso-expert.grupogritt.workers.dev'); // Connect to Cloudflare Worker backend for Netlify hosting
+// CONFIGURATION: Paste your Google Web App URL here to save data to Google Sheets
+// If left empty, it will default to relative local server paths (/api/refunds)
+const DATABASE_URL = ""; 
 
 let adminPassword = '';
 let refundRequests = [];
@@ -75,14 +72,25 @@ async function loginAdmin() {
 
     try {
         // Verify password by attempting to fetch data
-        const response = await fetch(`${API_BASE}/api/refunds`, {
+        const url = DATABASE_URL 
+            ? `${DATABASE_URL}?action=read&password=${encodeURIComponent(password)}`
+            : '/api/refunds';
+            
+        const headers = DATABASE_URL ? {} : { 'Authorization': password };
+
+        const response = await fetch(url, {
             method: 'GET',
-            headers: {
-                'Authorization': password
-            }
+            headers: headers
         });
 
-        if (response.status === 200) {
+        if (response.status === 200 || response.ok) {
+            const data = await response.json();
+            if (data && data.error === "Unauthorized") {
+                errorEl.style.display = 'block';
+                passwordInput.select();
+                return;
+            }
+            
             adminPassword = password;
             sessionStorage.setItem('admin_password', password);
             showDashboard();
@@ -153,15 +161,26 @@ async function fetchRefundRequests() {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/refunds`, {
+        const url = DATABASE_URL 
+            ? `${DATABASE_URL}?action=read&password=${encodeURIComponent(adminPassword)}`
+            : '/api/refunds';
+            
+        const headers = DATABASE_URL ? {} : { 'Authorization': adminPassword };
+
+        const response = await fetch(url, {
             method: 'GET',
-            headers: {
-                'Authorization': adminPassword
-            }
+            headers: headers
         });
 
-        if (response.status === 200) {
-            refundRequests = await response.json();
+        if (response.status === 200 || response.ok) {
+            const data = await response.json();
+            if (data && data.error === "Unauthorized") {
+                alert('Sesión expirada o no autorizada. Por favor inicia sesión de nuevo.');
+                logoutAdmin();
+                return;
+            }
+            
+            refundRequests = data;
             updateMetrics();
             updateProductDistribution();
             updateAuditLogWidget();
@@ -174,7 +193,7 @@ async function fetchRefundRequests() {
         }
     } catch (err) {
         console.error('Error fetching data:', err);
-        listContainer.innerHTML = '<div class="no-data">Error de conexión. Asegúrate de iniciar tu servidor de desarrollo con "node server.js".</div>';
+        listContainer.innerHTML = '<div class="no-data">Error de conexão. Não foi possível conectar ao banco de dados configurado.</div>';
     }
 }
 
@@ -194,19 +213,23 @@ async function changeRequestStatus(requestId, newStatus) {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/refunds`, {
-            method: 'PUT',
-            headers: {
+        const url = DATABASE_URL
+            ? `${DATABASE_URL}?action=update&id=${encodeURIComponent(requestId)}&status=${encodeURIComponent(newStatus)}&password=${encodeURIComponent(adminPassword)}`
+            : '/api/refunds';
+            
+        const response = await fetch(url, {
+            method: DATABASE_URL ? 'GET' : 'PUT', // Apps Script does GET/POST redirects cleanly
+            headers: DATABASE_URL ? {} : {
                 'Content-Type': 'application/json',
                 'Authorization': adminPassword
             },
-            body: JSON.stringify({
+            body: DATABASE_URL ? null : JSON.stringify({
                 id: requestId,
                 status: newStatus
             })
         });
 
-        if (response.status === 200) {
+        if (response.status === 200 || response.ok) {
             addAuditLog(`Ticket ${requestId} marcado como ${newStatus}.`);
             closeRequestDetail();
             fetchRefundRequests();
@@ -215,7 +238,7 @@ async function changeRequestStatus(requestId, newStatus) {
         }
     } catch (err) {
         console.error('Error changing status:', err);
-        alert('Error de conexión.');
+        alert('Error de conexão.');
     }
 }
 
@@ -234,14 +257,18 @@ async function deleteRequest(requestId) {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(requestId)}`, {
-            method: 'DELETE',
-            headers: {
+        const url = DATABASE_URL
+            ? `${DATABASE_URL}?action=delete&id=${encodeURIComponent(requestId)}&password=${encodeURIComponent(adminPassword)}`
+            : `/api/refunds?id=${encodeURIComponent(requestId)}`;
+            
+        const response = await fetch(url, {
+            method: DATABASE_URL ? 'GET' : 'DELETE',
+            headers: DATABASE_URL ? {} : {
                 'Authorization': adminPassword
             }
         });
 
-        if (response.status === 200) {
+        if (response.status === 200 || response.ok) {
             addAuditLog(`Registro ${requestId} eliminado del sistema.`);
             closeRequestDetail();
             fetchRefundRequests();
@@ -250,7 +277,7 @@ async function deleteRequest(requestId) {
         }
     } catch (err) {
         console.error('Error deleting:', err);
-        alert('Error de conexión.');
+        alert('Error de conexão.');
     }
 }
 
@@ -298,7 +325,7 @@ function applyFilters() {
             r.name.toLowerCase().includes(searchVal) ||
             r.email.toLowerCase().includes(searchVal) ||
             r.id.toLowerCase().includes(searchVal) ||
-            r.products.some(p => p.name.toLowerCase().includes(searchVal))
+            (r.products && r.products.some(p => p.name.toLowerCase().includes(searchVal)))
         );
     }
     
@@ -331,7 +358,7 @@ function applyFilters() {
         
         const dateObj = new Date(request.date);
         const formattedDate = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const productsHTML = request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ');
+        const productsHTML = request.products ? request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ') : '';
         
         row.innerHTML = `
             <div class="col-select">
@@ -435,15 +462,19 @@ async function handleBulkStatus(newStatus) {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const response = await fetch(`${API_BASE}/api/refunds`, {
-                method: 'PUT',
-                headers: {
+            const url = DATABASE_URL
+                ? `${DATABASE_URL}?action=update&id=${encodeURIComponent(id)}&status=${encodeURIComponent(newStatus)}&password=${encodeURIComponent(adminPassword)}`
+                : '/api/refunds';
+                
+            const response = await fetch(url, {
+                method: DATABASE_URL ? 'GET' : 'PUT',
+                headers: DATABASE_URL ? {} : {
                     'Content-Type': 'application/json',
                     'Authorization': adminPassword
                 },
-                body: JSON.stringify({ id, status: newStatus })
+                body: DATABASE_URL ? null : JSON.stringify({ id, status: newStatus })
             });
-            if (response.status === 200) successCount++;
+            if (response.status === 200 || response.ok) successCount++;
         } catch (err) {
             console.error(`Error updating bulk status for ${id}:`, err);
         }
@@ -472,13 +503,17 @@ async function handleBulkDelete() {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(id)}`, {
-                method: 'DELETE',
-                headers: {
+            const url = DATABASE_URL
+                ? `${DATABASE_URL}?action=delete&id=${encodeURIComponent(id)}&password=${encodeURIComponent(adminPassword)}`
+                : `/api/refunds?id=${encodeURIComponent(id)}`;
+                
+            const response = await fetch(url, {
+                method: DATABASE_URL ? 'GET' : 'DELETE',
+                headers: DATABASE_URL ? {} : {
                     'Authorization': adminPassword
                 }
             });
-            if (response.status === 200) successCount++;
+            if (response.status === 200 || response.ok) successCount++;
         } catch (err) {
             console.error(`Error deleting bulk item ${id}:`, err);
         }
@@ -505,10 +540,12 @@ function updateProductDistribution() {
     let totalProdSelections = 0;
 
     refundRequests.forEach(req => {
-        req.products.forEach(p => {
-            prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
-            totalProdSelections++;
-        });
+        if (req.products) {
+            req.products.forEach(p => {
+                prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
+                totalProdSelections++;
+            });
+        }
     });
 
     Object.keys(prodCounts).forEach(name => {
@@ -601,7 +638,7 @@ function openRequestDetail(requestId) {
     }
     
     const reqDate = new Date(req.date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
-    const productsHTML = req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('');
+    const productsHTML = req.products ? req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('') : '';
     
     const bodyEl = document.getElementById('detail-modal-body');
     bodyEl.innerHTML = `
@@ -715,7 +752,7 @@ function copyRefundDetailsText(requestId, btnElement) {
 Ticket: ${req.id}
 Cliente: ${req.name}
 Correo: ${req.email}
-Productos: ${req.products.map(p => p.name).join(', ')}
+Productos: ${req.products ? req.products.map(p => p.name).join(', ') : ''}
 Razón: ${req.reasonText}
 Comentarios: "${req.feedback}"
 Fecha de Registro: ${new Date(req.date).toLocaleDateString('es-ES')}`;
@@ -739,7 +776,7 @@ function exportData(format = 'csv') {
             const id = req.id;
             const name = `"${req.name.replace(/"/g, '""')}"`;
             const email = `"${req.email.replace(/"/g, '""')}"`;
-            const productsList = `"${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"`;
+            const productsList = `"${req.products ? req.products.map(p => p.name).join('; ').replace(/"/g, '""') : ''}"`;
             const reason = `"${req.reasonText.replace(/"/g, '""')}"`;
             const feedback = `"${req.feedback.replace(/"/g, '""')}"`;
             const date = req.date;
