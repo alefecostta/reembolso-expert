@@ -1,7 +1,6 @@
 import os
 
 # Paths
-base_dir = r"C:\Users\Tercio\AppData\Local\Temp" # just a safe temp script
 workspace_dir = r"C:\Users\Tercio\.gemini\antigravity\scratch\reembolso-expert"
 
 # Read files
@@ -27,27 +26,42 @@ html_content = html_content.replace("assets/titan.png", github_raw_prefix + "ass
 html_content = html_content.replace("assets/vip.png", github_raw_prefix + "assets/vip.png")
 
 # Bundle CSS and JS into index.html
-# Find </head> and insert <style>
 styled_html = html_content.replace("</head>", f"<style>\n{css_content}\n</style>\n</head>")
-# Find <script src="app.js"></script> and replace with inline script
 final_html = styled_html.replace('<script src="app.js"></script>', f"<script>\n{app_js_content}\n</script>")
 
 # Bundle CSS and JS into admin.html
 admin_styled_html = admin_html_content.replace("</head>", f"<style>\n{css_content}\n</style>\n</head>")
 final_admin_html = admin_styled_html.replace('<script src="admin.js"></script>', f"<script>\n{admin_js_content}\n</script>")
 
-# Create the Cloudflare Worker script template
+# Create the Cloudflare Worker script template with CORS headers enabled
 worker_template = f"""/* ==========================================================================
-   UNIFIED CLOUDFLARE WORKER - MANUAL REFUNDS (FRONTEND + BACKEND API)
+   UNIFIED CLOUDFLARE WORKER - MANUAL REFUNDS (FRONTEND + CORS BACKEND API)
    ========================================================================== */
 
 const HTML_CLIENT = `{final_html.replace("`", "\\`").replace("${", "\\${")}`;
 const HTML_ADMIN = `{final_admin_html.replace("`", "\\`").replace("${", "\\${")}`;
 
+// CORS Headers configuration to allow Netlify cross-domain fetches
+const CORS_HEADERS = {{
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Type": "application/json"
+}};
+
 export default {{
     async fetch(request, env, ctx) {{
         const url = new URL(request.url);
         const path = url.pathname;
+        const method = request.method;
+
+        // Handle OPTIONS preflight requests for CORS validation
+        if (method === "OPTIONS") {{
+            return new Response(null, {{
+                status: 204,
+                headers: CORS_HEADERS
+            }});
+        }}
 
         // ------------------------------------------------------------------
         // 1. ROUTING: FRONTEND PAGES
@@ -68,7 +82,6 @@ export default {{
         // 2. ROUTING: BACKEND API ENDPOINTS
         // ------------------------------------------------------------------
         if (path === "/api/refunds") {{
-            const method = request.method;
 
             // GET /api/refunds - Fetch all requests
             if (method === "GET") {{
@@ -76,18 +89,18 @@ export default {{
                 if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {{
                     return new Response(JSON.stringify({{ error: "Unauthorized" }}), {{
                         status: 401,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
                 try {{
                     const list = await env.REFUNDS.get("requests_list");
                     return new Response(list || "[]", {{
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }} catch (err) {{
                     return new Response(JSON.stringify({{ error: err.message }}), {{
                         status: 500,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
             }}
@@ -107,12 +120,12 @@ export default {{
                     await env.REFUNDS.put("requests_list", JSON.stringify(list));
 
                     return new Response(JSON.stringify({{ result: "success", id: newRequest.id }}), {{
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }} catch (err) {{
                     return new Response(JSON.stringify({{ error: err.message }}), {{
                         status: 500,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
             }}
@@ -123,7 +136,7 @@ export default {{
                 if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {{
                     return new Response(JSON.stringify({{ error: "Unauthorized" }}), {{
                         status: 401,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
                 try {{
@@ -132,7 +145,7 @@ export default {{
                     if (!listStr) {{
                         return new Response(JSON.stringify({{ error: "No requests found" }}), {{
                             status: 404,
-                            headers: {{ "Content-Type": "application/json" }}
+                            headers: CORS_HEADERS
                         }});
                     }}
 
@@ -142,18 +155,18 @@ export default {{
                         list[index].status = status;
                         await env.REFUNDS.put("requests_list", JSON.stringify(list));
                         return new Response(JSON.stringify({{ result: "success" }}), {{
-                            headers: {{ "Content-Type": "application/json" }}
+                            headers: CORS_HEADERS
                         }});
                     }} else {{
                         return new Response(JSON.stringify({{ error: "Request not found" }}), {{
                             status: 404,
-                            headers: {{ "Content-Type": "application/json" }}
+                            headers: CORS_HEADERS
                         }});
                     }}
                 }} catch (err) {{
                     return new Response(JSON.stringify({{ error: err.message }}), {{
                         status: 500,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
             }}
@@ -164,7 +177,7 @@ export default {{
                 if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {{
                     return new Response(JSON.stringify({{ error: "Unauthorized" }}), {{
                         status: 401,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
                 try {{
@@ -172,7 +185,7 @@ export default {{
                     if (!id) {{
                         return new Response(JSON.stringify({{ error: "Missing id parameter" }}), {{
                             status: 400,
-                            headers: {{ "Content-Type": "application/json" }}
+                            headers: CORS_HEADERS
                         }});
                     }}
 
@@ -180,7 +193,7 @@ export default {{
                     if (!listStr) {{
                         return new Response(JSON.stringify({{ error: "No requests found" }}), {{
                             status: 404,
-                            headers: {{ "Content-Type": "application/json" }}
+                            headers: CORS_HEADERS
                         }});
                     }}
 
@@ -189,12 +202,12 @@ export default {{
                     await env.REFUNDS.put("requests_list", JSON.stringify(filtered));
 
                     return new Response(JSON.stringify({{ result: "success" }}), {{
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }} catch (err) {{
                     return new Response(JSON.stringify({{ error: err.message }}), {{
                         status: 500,
-                        headers: {{ "Content-Type": "application/json" }}
+                        headers: CORS_HEADERS
                     }});
                 }}
             }}
@@ -210,4 +223,4 @@ export default {{
 with open(os.path.join(workspace_dir, "cloudflare-worker.js"), "w", encoding="utf-8") as f:
     f.write(worker_template)
 
-print("cloudflare-worker.js successfully built!")
+print("cloudflare-worker.js successfully built with CORS support!")

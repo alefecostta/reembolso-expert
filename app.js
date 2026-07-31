@@ -2,6 +2,13 @@
    IA TRADER - CUSTOMER REFUND FORM LOGIC (CLIENT SIDE)
    ========================================================================== */
 
+// Configure API base URL depending on platform hosting
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? '' // Use local relative paths for localhost server testing
+    : (window.location.hostname.includes('workers.dev') || window.location.hostname.includes('pages.dev')
+        ? '' // Use relative paths for native Cloudflare hosting
+        : 'https://reembolso-expert.grupogritt.workers.dev'); // Connect to Cloudflare Worker backend for Netlify hosting
+
 // Global State
 let currentStep = 1;
 const totalSteps = 3;
@@ -284,7 +291,7 @@ Comentarios: "${feedback}"`;
     
     try {
         // Send request POST to server API (Cloudflare Pages/Worker backend)
-        const response = await fetch('/api/refunds', {
+        const response = await fetch(`${API_BASE}/api/refunds`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

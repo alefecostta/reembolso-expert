@@ -2,6 +2,13 @@
    IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
    ========================================================================== */
 
+// Configure API base URL depending on platform hosting
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? '' // Use local relative paths for localhost server testing
+    : (window.location.hostname.includes('workers.dev') || window.location.hostname.includes('pages.dev')
+        ? '' // Use relative paths for native Cloudflare hosting
+        : 'https://reembolso-expert.grupogritt.workers.dev'); // Connect to Cloudflare Worker backend for Netlify hosting
+
 let adminPassword = '';
 let refundRequests = [];
 let selectedIds = [];
@@ -52,9 +59,23 @@ async function loginAdmin() {
         return;
     }
 
+    // Local file protocol simulation (allows double-clicking file offline)
+    if (window.location.protocol === 'file:') {
+        if (password === 'admin123' || password === 'admin') {
+            adminPassword = password;
+            sessionStorage.setItem('admin_password', password);
+            showDashboard();
+            passwordInput.value = '';
+        } else {
+            errorEl.style.display = 'block';
+            passwordInput.select();
+        }
+        return;
+    }
+
     try {
         // Verify password by attempting to fetch data
-        const response = await fetch('/api/refunds', {
+        const response = await fetch(`${API_BASE}/api/refunds`, {
             method: 'GET',
             headers: {
                 'Authorization': password
@@ -90,7 +111,7 @@ function logoutAdmin() {
 
 async function fetchRefundRequests() {
     const listContainer = document.getElementById('requests-list');
-    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes desde el servidor...</div>';
+    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes...</div>';
     
     // Clear selection
     selectedIds = [];
@@ -98,8 +119,41 @@ async function fetchRefundRequests() {
     const masterSelect = document.getElementById('master-select');
     if (masterSelect) masterSelect.checked = false;
 
+    // Local file protocol simulation (Offline testing mock data)
+    if (window.location.protocol === 'file:') {
+        refundRequests = [
+            {
+                id: "#REF-8321",
+                name: "Carlos Mendoza",
+                email: "carlos.mendoza@email.com",
+                products: [{ id: "6587709", name: "AI PRO - Comece aqui" }],
+                reason: "no-cumplio",
+                reasonText: "Não tenho tempo para usar/aplicar",
+                feedback: "Pensé que las alertas eran automáticas.",
+                date: "2026-07-28T14:32:00.000Z",
+                status: "pending"
+            },
+            {
+                id: "#REF-4412",
+                name: "Mariana Silva",
+                email: "mari.silva@email.com",
+                products: [{ id: "6587831", name: "Grupo VIP de Alumnos" }],
+                reason: "problemas-economicos",
+                reasonText: "Dificultad económica actual",
+                feedback: "Tuve un imprevisto familiar y necesito recuperar el dinero.",
+                date: "2026-07-29T09:15:00.000Z",
+                status: "refunded"
+            }
+        ];
+        updateMetrics();
+        updateProductDistribution();
+        updateAuditLogWidget();
+        applyFilters();
+        return;
+    }
+
     try {
-        const response = await fetch('/api/refunds', {
+        const response = await fetch(`${API_BASE}/api/refunds`, {
             method: 'GET',
             headers: {
                 'Authorization': adminPassword
@@ -125,8 +179,22 @@ async function fetchRefundRequests() {
 }
 
 async function changeRequestStatus(requestId, newStatus) {
+    // File protocol mock handling
+    if (window.location.protocol === 'file:') {
+        const idx = refundRequests.findIndex(r => r.id === requestId);
+        if (idx !== -1) {
+            refundRequests[idx].status = newStatus;
+            addAuditLog(`Local: Ticket ${requestId} marcado como ${newStatus}.`);
+            closeRequestDetail();
+            updateMetrics();
+            updateProductDistribution();
+            applyFilters();
+        }
+        return;
+    }
+
     try {
-        const response = await fetch('/api/refunds', {
+        const response = await fetch(`${API_BASE}/api/refunds`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -154,8 +222,19 @@ async function changeRequestStatus(requestId, newStatus) {
 async function deleteRequest(requestId) {
     if (!confirm('¿Estás seguro de que deseas eliminar permanentemente esta solicitud?')) return;
 
+    // File protocol mock handling
+    if (window.location.protocol === 'file:') {
+        refundRequests = refundRequests.filter(r => r.id !== requestId);
+        addAuditLog(`Local: Registro ${requestId} eliminado.`);
+        closeRequestDetail();
+        updateMetrics();
+        updateProductDistribution();
+        applyFilters();
+        return;
+    }
+
     try {
-        const response = await fetch(`/api/refunds?id=${encodeURIComponent(requestId)}`, {
+        const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(requestId)}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': adminPassword
@@ -337,10 +416,26 @@ function updateBulkActionsBar() {
 async function handleBulkStatus(newStatus) {
     if (!confirm(`¿Estás seguro de que deseas marcar ${selectedIds.length} solicitudes como ${newStatus}?`)) return;
 
+    // File protocol mock
+    if (window.location.protocol === 'file:') {
+        selectedIds.forEach(id => {
+            const idx = refundRequests.findIndex(r => r.id === id);
+            if (idx !== -1) refundRequests[idx].status = newStatus;
+        });
+        addAuditLog(`Local: ${selectedIds.length} tickets marcados como ${newStatus}.`);
+        selectedIds = [];
+        updateBulkActionsBar();
+        document.getElementById('master-select').checked = false;
+        updateMetrics();
+        updateProductDistribution();
+        applyFilters();
+        return;
+    }
+
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const response = await fetch('/api/refunds', {
+            const response = await fetch(`${API_BASE}/api/refunds`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -361,10 +456,23 @@ async function handleBulkStatus(newStatus) {
 async function handleBulkDelete() {
     if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente estas ${selectedIds.length} solicitudes?`)) return;
 
+    // File protocol mock
+    if (window.location.protocol === 'file:') {
+        refundRequests = refundRequests.filter(r => !selectedIds.includes(r.id));
+        addAuditLog(`Local: ${selectedIds.length} registros eliminados.`);
+        selectedIds = [];
+        updateBulkActionsBar();
+        document.getElementById('master-select').checked = false;
+        updateMetrics();
+        updateProductDistribution();
+        applyFilters();
+        return;
+    }
+
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const response = await fetch(`/api/refunds?id=${encodeURIComponent(id)}`, {
+            const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': adminPassword
@@ -448,11 +556,11 @@ function updateAuditLogWidget() {
         item.className = 'audit-log-item';
         
         // Style indicator depending on type of action
-        if (log.text.includes('eliminado') || log.text.includes('Eliminación')) {
+        if (log.text.includes('eliminado') || log.text.includes('Eliminación') || log.text.includes('eliminados')) {
             item.style.borderLeftColor = 'var(--danger)';
-        } else if (log.text.includes('reembolsada') || log.text.includes('reembolsado') || log.text.includes('masiva')) {
+        } else if (log.text.includes('reembolsada') || log.text.includes('reembolsado') || log.text.includes('masiva') || log.text.includes('reembolso')) {
             item.style.borderLeftColor = 'var(--success)';
-        } else if (log.text.includes('iniciada') || log.text.includes('activa')) {
+        } else if (log.text.includes('iniciada') || log.text.includes('activa') || log.text.includes('control')) {
             item.style.borderLeftColor = 'var(--primary)';
         }
         
