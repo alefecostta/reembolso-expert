@@ -1,20 +1,13 @@
 /* ==========================================================================
-   IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
+   IA TRADER - ADMINISTRATIVE DASHBOARD (PURE BROWSER LOCAL STORAGE ENGINE)
    ========================================================================== */
-
-// Configure API base URL depending on platform hosting
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? '' // Use local relative paths for localhost server testing
-    : (window.location.hostname.includes('workers.dev') || window.location.hostname.includes('pages.dev')
-        ? '' // Use relative paths for native Cloudflare hosting
-        : 'https://reembolso-expert.grupogritt.workers.dev'); // Connect to Cloudflare Worker backend for Netlify hosting
 
 let adminPassword = '';
 let refundRequests = [];
 let selectedIds = [];
 let currentFilter = 'all';
 let auditLogs = [
-    { text: 'Sistema de control iniciado.', time: new Date() }
+    { text: 'Sistema de control iniciado en modo local.', time: new Date() }
 ];
 
 // Initialize
@@ -45,7 +38,7 @@ function showDashboard() {
 }
 
 /* ==========================================================================
-   AUTHENTICATION LOGIC
+   AUTHENTICATION LOGIC (LOCAL PASSWORDS: 'reembolso' OR 'admin' OR 'admin123')
    ========================================================================== */
 
 function loginAdmin() {
@@ -59,7 +52,6 @@ function loginAdmin() {
         return;
     }
 
-    // Client-side local passwords check (completely serverless login)
     if (password === 'reembolso' || password === 'admin' || password === 'admin123') {
         adminPassword = password;
         sessionStorage.setItem('admin_password', password);
@@ -80,10 +72,10 @@ function logoutAdmin() {
 }
 
 /* ==========================================================================
-   API DATA INTERACTION
+   LOCAL STORAGE DATABASE CRUD SIMULATION
    ========================================================================== */
 
-async function fetchRefundRequests() {
+function fetchRefundRequests() {
     const listContainer = document.getElementById('requests-list');
     listContainer.innerHTML = '<div class="no-data">Cargando solicitudes...</div>';
     
@@ -93,8 +85,10 @@ async function fetchRefundRequests() {
     const masterSelect = document.getElementById('master-select');
     if (masterSelect) masterSelect.checked = false;
 
-    // Local file protocol simulation (Offline testing mock data)
-    if (window.location.protocol === 'file:') {
+    // Load from localStorage, or initialize with mock data if completely empty
+    let listStr = localStorage.getItem('refund_requests');
+    if (!listStr) {
+        // Mock data for initial visual display
         refundRequests = [
             {
                 id: "#REF-8321",
@@ -119,113 +113,38 @@ async function fetchRefundRequests() {
                 status: "refunded"
             }
         ];
-        updateMetrics();
-        updateProductDistribution();
-        updateAuditLogWidget();
-        applyFilters();
-        return;
+        localStorage.setItem('refund_requests', JSON.stringify(refundRequests));
+    } else {
+        refundRequests = JSON.parse(listStr);
     }
 
-    try {
-        const response = await fetch(`${API_BASE}/api/refunds`, {
-            method: 'GET',
-            headers: {
-                'Authorization': adminPassword
-            }
-        });
+    updateMetrics();
+    updateProductDistribution();
+    updateAuditLogWidget();
+    applyFilters();
+}
 
-        if (response.status === 200) {
-            refundRequests = await response.json();
-            updateMetrics();
-            updateProductDistribution();
-            updateAuditLogWidget();
-            applyFilters();
-        } else if (response.status === 401) {
-            alert('Sesión expirada o no autorizada. Por favor inicia sesión de nuevo.');
-            logoutAdmin();
-        } else {
-            alert('Error al obtener datos del servidor.');
-        }
-    } catch (err) {
-        console.error('Error fetching data:', err);
-        listContainer.innerHTML = '<div class="no-data">Error de conexión. Asegúrate de iniciar tu servidor de desarrollo con "node server.js".</div>';
+function changeRequestStatus(requestId, newStatus) {
+    const idx = refundRequests.findIndex(r => r.id === requestId);
+    if (idx !== -1) {
+        refundRequests[idx].status = newStatus;
+        localStorage.setItem('refund_requests', JSON.stringify(refundRequests));
+        
+        addAuditLog(`Ticket ${requestId} marcado como ${newStatus}.`);
+        closeRequestDetail();
+        fetchRefundRequests();
     }
 }
 
-async function changeRequestStatus(requestId, newStatus) {
-    // File protocol mock handling
-    if (window.location.protocol === 'file:') {
-        const idx = refundRequests.findIndex(r => r.id === requestId);
-        if (idx !== -1) {
-            refundRequests[idx].status = newStatus;
-            addAuditLog(`Local: Ticket ${requestId} marcado como ${newStatus}.`);
-            closeRequestDetail();
-            updateMetrics();
-            updateProductDistribution();
-            applyFilters();
-        }
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/api/refunds`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': adminPassword
-            },
-            body: JSON.stringify({
-                id: requestId,
-                status: newStatus
-            })
-        });
-
-        if (response.status === 200) {
-            addAuditLog(`Ticket ${requestId} marcado como ${newStatus}.`);
-            closeRequestDetail();
-            fetchRefundRequests();
-        } else {
-            alert('Error al cambiar el estado del reembolso.');
-        }
-    } catch (err) {
-        console.error('Error changing status:', err);
-        alert('Error de conexión.');
-    }
-}
-
-async function deleteRequest(requestId) {
+function deleteRequest(requestId) {
     if (!confirm('¿Estás seguro de que deseas eliminar permanentemente esta solicitud?')) return;
 
-    // File protocol mock handling
-    if (window.location.protocol === 'file:') {
-        refundRequests = refundRequests.filter(r => r.id !== requestId);
-        addAuditLog(`Local: Registro ${requestId} eliminado.`);
-        closeRequestDetail();
-        updateMetrics();
-        updateProductDistribution();
-        applyFilters();
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(requestId)}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': adminPassword
-            }
-        });
-
-        if (response.status === 200) {
-            addAuditLog(`Registro ${requestId} eliminado del sistema.`);
-            closeRequestDetail();
-            fetchRefundRequests();
-        } else {
-            alert('Error al eliminar el registro.');
-        }
-    } catch (err) {
-        console.error('Error deleting:', err);
-        alert('Error de conexión.');
-    }
+    refundRequests = refundRequests.filter(r => r.id !== requestId);
+    localStorage.setItem('refund_requests', JSON.stringify(refundRequests));
+    
+    addAuditLog(`Registro ${requestId} eliminado.`);
+    closeRequestDetail();
+    fetchRefundRequests();
 }
 
 /* ==========================================================================
@@ -272,7 +191,7 @@ function applyFilters() {
             r.name.toLowerCase().includes(searchVal) ||
             r.email.toLowerCase().includes(searchVal) ||
             r.id.toLowerCase().includes(searchVal) ||
-            r.products.some(p => p.name.toLowerCase().includes(searchVal))
+            (r.products && r.products.some(p => p.name.toLowerCase().includes(searchVal)))
         );
     }
     
@@ -305,7 +224,7 @@ function applyFilters() {
         
         const dateObj = new Date(request.date);
         const formattedDate = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const productsHTML = request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ');
+        const productsHTML = request.products ? request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ') : '';
         
         row.innerHTML = `
             <div class="col-select">
@@ -387,78 +306,34 @@ function updateBulkActionsBar() {
     }
 }
 
-async function handleBulkStatus(newStatus) {
+function handleBulkStatus(newStatus) {
     if (!confirm(`¿Estás seguro de que deseas marcar ${selectedIds.length} solicitudes como ${newStatus}?`)) return;
 
-    // File protocol mock
-    if (window.location.protocol === 'file:') {
-        selectedIds.forEach(id => {
-            const idx = refundRequests.findIndex(r => r.id === id);
-            if (idx !== -1) refundRequests[idx].status = newStatus;
-        });
-        addAuditLog(`Local: ${selectedIds.length} tickets marcados como ${newStatus}.`);
-        selectedIds = [];
-        updateBulkActionsBar();
-        document.getElementById('master-select').checked = false;
-        updateMetrics();
-        updateProductDistribution();
-        applyFilters();
-        return;
-    }
-
-    let successCount = 0;
-    for (const id of selectedIds) {
-        try {
-            const response = await fetch(`${API_BASE}/api/refunds`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': adminPassword
-                },
-                body: JSON.stringify({ id, status: newStatus })
-            });
-            if (response.status === 200) successCount++;
-        } catch (err) {
-            console.error(`Error updating bulk status for ${id}:`, err);
-        }
-    }
+    selectedIds.forEach(id => {
+        const idx = refundRequests.findIndex(r => r.id === id);
+        if (idx !== -1) refundRequests[idx].status = newStatus;
+    });
     
-    addAuditLog(`Acción masiva: ${successCount} tickets marcados como ${newStatus}.`);
+    localStorage.setItem('refund_requests', JSON.stringify(refundRequests));
+    addAuditLog(`Acción masiva: ${selectedIds.length} tickets marcados como ${newStatus}.`);
+    
+    selectedIds = [];
+    updateBulkActionsBar();
+    document.getElementById('master-select').checked = false;
     fetchRefundRequests();
 }
 
-async function handleBulkDelete() {
+function handleBulkDelete() {
     if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente estas ${selectedIds.length} solicitudes?`)) return;
 
-    // File protocol mock
-    if (window.location.protocol === 'file:') {
-        refundRequests = refundRequests.filter(r => !selectedIds.includes(r.id));
-        addAuditLog(`Local: ${selectedIds.length} registros eliminados.`);
-        selectedIds = [];
-        updateBulkActionsBar();
-        document.getElementById('master-select').checked = false;
-        updateMetrics();
-        updateProductDistribution();
-        applyFilters();
-        return;
-    }
-
-    let successCount = 0;
-    for (const id of selectedIds) {
-        try {
-            const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(id)}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': adminPassword
-                }
-            });
-            if (response.status === 200) successCount++;
-        } catch (err) {
-            console.error(`Error deleting bulk item ${id}:`, err);
-        }
-    }
+    refundRequests = refundRequests.filter(r => !selectedIds.includes(r.id));
+    localStorage.setItem('refund_requests', JSON.stringify(refundRequests));
     
-    addAuditLog(`Eliminación masiva: ${successCount} registros eliminados del sistema.`);
+    addAuditLog(`Eliminación masiva: ${selectedIds.length} registros eliminados.`);
+    
+    selectedIds = [];
+    updateBulkActionsBar();
+    document.getElementById('master-select').checked = false;
     fetchRefundRequests();
 }
 
@@ -479,10 +354,12 @@ function updateProductDistribution() {
     let totalProdSelections = 0;
 
     refundRequests.forEach(req => {
-        req.products.forEach(p => {
-            prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
-            totalProdSelections++;
-        });
+        if (req.products) {
+            req.products.forEach(p => {
+                prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
+                totalProdSelections++;
+            });
+        }
     });
 
     Object.keys(prodCounts).forEach(name => {
@@ -513,9 +390,7 @@ function addAuditLog(text) {
         text,
         time: new Date()
     });
-    // Limit to latest 10 logs
     if (auditLogs.length > 10) auditLogs.pop();
-    
     updateAuditLogWidget();
 }
 
@@ -529,7 +404,6 @@ function updateAuditLogWidget() {
         const item = document.createElement('div');
         item.className = 'audit-log-item';
         
-        // Style indicator depending on type of action
         if (log.text.includes('eliminado') || log.text.includes('Eliminación') || log.text.includes('eliminados')) {
             item.style.borderLeftColor = 'var(--danger)';
         } else if (log.text.includes('reembolsada') || log.text.includes('reembolsado') || log.text.includes('masiva') || log.text.includes('reembolso')) {
@@ -575,7 +449,7 @@ function openRequestDetail(requestId) {
     }
     
     const reqDate = new Date(req.date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
-    const productsHTML = req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('');
+    const productsHTML = req.products ? req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('') : '';
     
     const bodyEl = document.getElementById('detail-modal-body');
     bodyEl.innerHTML = `
@@ -689,7 +563,7 @@ function copyRefundDetailsText(requestId, btnElement) {
 Ticket: ${req.id}
 Cliente: ${req.name}
 Correo: ${req.email}
-Productos: ${req.products.map(p => p.name).join(', ')}
+Productos: ${req.products ? req.products.map(p => p.name).join(', ') : ''}
 Razón: ${req.reasonText}
 Comentarios: "${req.feedback}"
 Fecha de Registro: ${new Date(req.date).toLocaleDateString('es-ES')}`;
@@ -713,7 +587,7 @@ function exportData(format = 'csv') {
             const id = req.id;
             const name = `"${req.name.replace(/"/g, '""')}"`;
             const email = `"${req.email.replace(/"/g, '""')}"`;
-            const productsList = `"${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"`;
+            const productsList = `"${req.products ? req.products.map(p => p.name).join('; ').replace(/"/g, '""') : ''}"`;
             const reason = `"${req.reasonText.replace(/"/g, '""')}"`;
             const feedback = `"${req.feedback.replace(/"/g, '""')}"`;
             const date = req.date;
@@ -744,7 +618,6 @@ function showInputError(inputEl, message) {
     inputEl.style.borderColor = 'var(--danger)';
     const parent = inputEl.parentNode;
     
-    // Remove previous validation errors if any
     const prevError = parent.querySelector('.validation-error-text');
     if (prevError) prevError.remove();
 
