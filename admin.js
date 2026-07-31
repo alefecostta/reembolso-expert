@@ -2,9 +2,12 @@
    IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
    ========================================================================== */
 
-// CONFIGURATION: Paste your Google Web App URL here to save data to Google Sheets
-// If left empty, it will default to relative local server paths (/api/refunds)
-const DATABASE_URL = "https://script.google.com/macros/s/AKfycbwEYfoHSL0-_HIzNm8jHZIy3H3fWdmm0QjiTQc_irtzoWoo9-LmsBmRGWlqtQhv9c05/exec"; 
+// Configure API base URL depending on platform hosting
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? '' // Use local relative paths for localhost server testing
+    : (window.location.hostname.includes('workers.dev') || window.location.hostname.includes('pages.dev')
+        ? '' // Use relative paths for native Cloudflare hosting
+        : 'https://reembolso-expert.grupogritt.workers.dev'); // Connect to Cloudflare Worker backend for Netlify hosting
 
 let adminPassword = '';
 let refundRequests = [];
@@ -70,40 +73,23 @@ async function loginAdmin() {
         return;
     }
 
-    // Check if database URL is missing when hosted on Netlify/web
-    if (!DATABASE_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        alert('Erro: Banco de dados não configurado! Você precisa configurar a URL da sua Planilha do Google na variável DATABASE_URL no topo do arquivo admin.js para conseguir fazer login.');
-        return;
-    }
-
     try {
-        // Verify password by attempting to fetch data (CORS safe POST request)
-        const url = DATABASE_URL || '/api/refunds';
-        const response = await fetch(url, {
-            method: DATABASE_URL ? 'POST' : 'GET',
-            headers: DATABASE_URL ? {} : { 'Authorization': password },
-            body: DATABASE_URL ? JSON.stringify({ action: 'read', password: password }) : null
+        // Verify password by attempting to fetch data
+        const response = await fetch(`${API_BASE}/api/refunds`, {
+            method: 'GET',
+            headers: {
+                'Authorization': password
+            }
         });
 
-        if (response.status === 200 || response.ok) {
-            const data = await response.json();
-            if (data && data.error === "Unauthorized") {
-                errorEl.style.display = 'block';
-                passwordInput.select();
-                return;
-            }
-            
+        if (response.status === 200) {
             adminPassword = password;
             sessionStorage.setItem('admin_password', password);
             showDashboard();
             passwordInput.value = '';
         } else {
-            if (response.status === 404) {
-                alert('Erro: Banco de dados não encontrado (404). Verifique se configurou a URL da planilha corretamente.');
-            } else {
-                errorEl.style.display = 'block';
-                passwordInput.select();
-            }
+            errorEl.style.display = 'block';
+            passwordInput.select();
         }
     } catch (err) {
         console.error('Error logging in:', err);
@@ -167,22 +153,15 @@ async function fetchRefundRequests() {
     }
 
     try {
-        const url = DATABASE_URL || '/api/refunds';
-        const response = await fetch(url, {
-            method: DATABASE_URL ? 'POST' : 'GET',
-            headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
-            body: DATABASE_URL ? JSON.stringify({ action: 'read', password: adminPassword }) : null
+        const response = await fetch(`${API_BASE}/api/refunds`, {
+            method: 'GET',
+            headers: {
+                'Authorization': adminPassword
+            }
         });
 
-        if (response.status === 200 || response.ok) {
-            const data = await response.json();
-            if (data && data.error === "Unauthorized") {
-                alert('Sesión expirada o no autorizada. Por favor inicia sesión de nuevo.');
-                logoutAdmin();
-                return;
-            }
-            
-            refundRequests = data;
+        if (response.status === 200) {
+            refundRequests = await response.json();
             updateMetrics();
             updateProductDistribution();
             updateAuditLogWidget();
@@ -195,7 +174,7 @@ async function fetchRefundRequests() {
         }
     } catch (err) {
         console.error('Error fetching data:', err);
-        listContainer.innerHTML = '<div class="no-data">Error de conexão. Não foi possível conectar ao banco de dados configurado.</div>';
+        listContainer.innerHTML = '<div class="no-data">Error de conexión. Asegúrate de iniciar tu servidor de desarrollo con "node server.js".</div>';
     }
 }
 
@@ -215,19 +194,19 @@ async function changeRequestStatus(requestId, newStatus) {
     }
 
     try {
-        const url = DATABASE_URL || '/api/refunds';
-        const response = await fetch(url, {
-            method: DATABASE_URL ? 'POST' : 'PUT',
-            headers: DATABASE_URL ? {} : {
+        const response = await fetch(`${API_BASE}/api/refunds`, {
+            method: 'PUT',
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': adminPassword
             },
-            body: DATABASE_URL 
-                ? JSON.stringify({ action: 'update', id: requestId, status: newStatus, password: adminPassword })
-                : JSON.stringify({ id: requestId, status: newStatus })
+            body: JSON.stringify({
+                id: requestId,
+                status: newStatus
+            })
         });
 
-        if (response.status === 200 || response.ok) {
+        if (response.status === 200) {
             addAuditLog(`Ticket ${requestId} marcado como ${newStatus}.`);
             closeRequestDetail();
             fetchRefundRequests();
@@ -236,7 +215,7 @@ async function changeRequestStatus(requestId, newStatus) {
         }
     } catch (err) {
         console.error('Error changing status:', err);
-        alert('Error de conexão.');
+        alert('Error de conexión.');
     }
 }
 
@@ -255,14 +234,14 @@ async function deleteRequest(requestId) {
     }
 
     try {
-        const url = DATABASE_URL || `/api/refunds?id=${encodeURIComponent(requestId)}`;
-        const response = await fetch(url, {
-            method: DATABASE_URL ? 'POST' : 'DELETE',
-            headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
-            body: DATABASE_URL ? JSON.stringify({ action: 'delete', id: requestId, password: adminPassword }) : null
+        const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(requestId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': adminPassword
+            }
         });
 
-        if (response.status === 200 || response.ok) {
+        if (response.status === 200) {
             addAuditLog(`Registro ${requestId} eliminado del sistema.`);
             closeRequestDetail();
             fetchRefundRequests();
@@ -271,7 +250,7 @@ async function deleteRequest(requestId) {
         }
     } catch (err) {
         console.error('Error deleting:', err);
-        alert('Error de conexão.');
+        alert('Error de conexión.');
     }
 }
 
@@ -319,7 +298,7 @@ function applyFilters() {
             r.name.toLowerCase().includes(searchVal) ||
             r.email.toLowerCase().includes(searchVal) ||
             r.id.toLowerCase().includes(searchVal) ||
-            (r.products && r.products.some(p => p.name.toLowerCase().includes(searchVal)))
+            r.products.some(p => p.name.toLowerCase().includes(searchVal))
         );
     }
     
@@ -352,7 +331,7 @@ function applyFilters() {
         
         const dateObj = new Date(request.date);
         const formattedDate = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const productsHTML = request.products ? request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ') : '';
+        const productsHTML = request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ');
         
         row.innerHTML = `
             <div class="col-select">
@@ -456,18 +435,15 @@ async function handleBulkStatus(newStatus) {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const url = DATABASE_URL || '/api/refunds';
-            const response = await fetch(url, {
-                method: DATABASE_URL ? 'POST' : 'PUT',
-                headers: DATABASE_URL ? {} : {
+            const response = await fetch(`${API_BASE}/api/refunds`, {
+                method: 'PUT',
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': adminPassword
                 },
-                body: DATABASE_URL 
-                    ? JSON.stringify({ action: 'update', id, status: newStatus, password: adminPassword })
-                    : JSON.stringify({ id, status: newStatus })
+                body: JSON.stringify({ id, status: newStatus })
             });
-            if (response.status === 200 || response.ok) successCount++;
+            if (response.status === 200) successCount++;
         } catch (err) {
             console.error(`Error updating bulk status for ${id}:`, err);
         }
@@ -496,13 +472,13 @@ async function handleBulkDelete() {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const url = DATABASE_URL || `/api/refunds?id=${encodeURIComponent(id)}`;
-            const response = await fetch(url, {
-                method: DATABASE_URL ? 'POST' : 'DELETE',
-                headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
-                body: DATABASE_URL ? JSON.stringify({ action: 'delete', id, password: adminPassword }) : null
+            const response = await fetch(`${API_BASE}/api/refunds?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': adminPassword
+                }
             });
-            if (response.status === 200 || response.ok) successCount++;
+            if (response.status === 200) successCount++;
         } catch (err) {
             console.error(`Error deleting bulk item ${id}:`, err);
         }
@@ -529,12 +505,10 @@ function updateProductDistribution() {
     let totalProdSelections = 0;
 
     refundRequests.forEach(req => {
-        if (req.products) {
-            req.products.forEach(p => {
-                prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
-                totalProdSelections++;
-            });
-        }
+        req.products.forEach(p => {
+            prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
+            totalProdSelections++;
+        });
     });
 
     Object.keys(prodCounts).forEach(name => {
@@ -627,7 +601,7 @@ function openRequestDetail(requestId) {
     }
     
     const reqDate = new Date(req.date).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
-    const productsHTML = req.products ? req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('') : '';
+    const productsHTML = req.products.map(p => `<span class="admin-prod-tag" style="margin-right: 5px; margin-bottom: 5px; display: inline-block;">${p.name}</span>`).join('');
     
     const bodyEl = document.getElementById('detail-modal-body');
     bodyEl.innerHTML = `
@@ -741,7 +715,7 @@ function copyRefundDetailsText(requestId, btnElement) {
 Ticket: ${req.id}
 Cliente: ${req.name}
 Correo: ${req.email}
-Productos: ${req.products ? req.products.map(p => p.name).join(', ') : ''}
+Productos: ${req.products.map(p => p.name).join(', ')}
 Razón: ${req.reasonText}
 Comentarios: "${req.feedback}"
 Fecha de Registro: ${new Date(req.date).toLocaleDateString('es-ES')}`;
@@ -765,7 +739,7 @@ function exportData(format = 'csv') {
             const id = req.id;
             const name = `"${req.name.replace(/"/g, '""')}"`;
             const email = `"${req.email.replace(/"/g, '""')}"`;
-            const productsList = `"${req.products ? req.products.map(p => p.name).join('; ').replace(/"/g, '""') : ''}"`;
+            const productsList = `"${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"`;
             const reason = `"${req.reasonText.replace(/"/g, '""')}"`;
             const feedback = `"${req.feedback.replace(/"/g, '""')}"`;
             const date = req.date;
