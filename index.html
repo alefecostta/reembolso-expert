@@ -211,19 +211,17 @@
                         </div>
                     </div>
                     
-                    <div class="telegram-box" style="margin: 25px 0 15px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; text-align: left;">
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
-                            👉 Para procesar tu reembolso más rápido, haz clic en el botón de abajo. Se **copiará automáticamente** tu mensaje de soporte y se abrirá el Telegram de <strong>@MartinRezende</strong> para que puedas pegarlo y enviarlo directamente.
+                    <div class="success-actions" style="margin-top: 30px;">
+                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;">
+                            Para procesar tu reembolso más rápido, haz clic en el botón de abajo para enviar tu mensaje de soporte ya estructurado directamente al Telegram.
                         </p>
-                        <textarea id="telegram-message-box" readonly style="width: 100%; height: 110px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; color: #fff; padding: 10px; font-family: monospace; font-size: 0.8rem; resize: none;"></textarea>
-                    </div>
-                    
-                    <div class="success-actions">
+                        <textarea id="telegram-message-box" style="display: none;"></textarea>
+                        
                         <button type="button" class="btn btn-primary btn-wide" id="telegram-redirect-btn" onclick="redirectToTelegram()">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="icon-left" style="margin-right: 8px;">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.89 1.2-5.33 3.52-.5.35-.96.52-1.37.51-.45-.01-1.32-.26-1.97-.47-.8-.26-1.43-.4-1.38-.85.03-.24.35-.48.97-.73 3.8-1.65 6.33-2.73 7.6-3.26 3.62-1.5 4.37-1.76 4.86-1.77.11 0 .35.03.5.15.13.1.17.24.18.34 0 .07.01.22 0 .33z"/>
                             </svg>
-                            Copiar Mensaje e Ir a Telegram
+                            Enviar al Telegram
                         </button>
                         <button type="button" class="btn btn-secondary btn-wide" onclick="resetForm()" style="margin-top: 10px;">
                             Volver al Inicio

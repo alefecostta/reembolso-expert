@@ -1,10 +1,14 @@
 /* ==========================================================================
-   IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (CLOUDFLARE SERVERLESS INTERACTION)
+   IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
    ========================================================================== */
 
 let adminPassword = '';
 let refundRequests = [];
+let selectedIds = [];
 let currentFilter = 'all';
+let auditLogs = [
+    { text: 'Sistema de control iniciado.', time: new Date() }
+];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -29,6 +33,7 @@ function showDashboard() {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('admin-section').style.display = 'block';
     document.getElementById('logout-btn').style.display = 'block';
+    addAuditLog('Sesión administrativa activa.');
     fetchRefundRequests();
 }
 
@@ -75,6 +80,7 @@ function logoutAdmin() {
     adminPassword = '';
     sessionStorage.removeItem('admin_password');
     refundRequests = [];
+    selectedIds = [];
     showLogin();
 }
 
@@ -84,7 +90,13 @@ function logoutAdmin() {
 
 async function fetchRefundRequests() {
     const listContainer = document.getElementById('requests-list');
-    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes desde el servidor Cloudflare...</div>';
+    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes desde el servidor...</div>';
+    
+    // Clear selection
+    selectedIds = [];
+    updateBulkActionsBar();
+    const masterSelect = document.getElementById('master-select');
+    if (masterSelect) masterSelect.checked = false;
 
     try {
         const response = await fetch('/api/refunds', {
@@ -97,6 +109,8 @@ async function fetchRefundRequests() {
         if (response.status === 200) {
             refundRequests = await response.json();
             updateMetrics();
+            updateProductDistribution();
+            updateAuditLogWidget();
             applyFilters();
         } else if (response.status === 401) {
             alert('Sesión expirada o no autorizada. Por favor inicia sesión de nuevo.');
@@ -106,7 +120,7 @@ async function fetchRefundRequests() {
         }
     } catch (err) {
         console.error('Error fetching data:', err);
-        listContainer.innerHTML = '<div class="no-data">Error al cargar datos. Asegúrate de configurar la base de datos KV en Cloudflare.</div>';
+        listContainer.innerHTML = '<div class="no-data">Error de conexión. Asegúrate de iniciar tu servidor de desarrollo con "node server.js".</div>';
     }
 }
 
@@ -125,6 +139,7 @@ async function changeRequestStatus(requestId, newStatus) {
         });
 
         if (response.status === 200) {
+            addAuditLog(`Ticket ${requestId} marcado como ${newStatus}.`);
             closeRequestDetail();
             fetchRefundRequests();
         } else {
@@ -148,6 +163,7 @@ async function deleteRequest(requestId) {
         });
 
         if (response.status === 200) {
+            addAuditLog(`Registro ${requestId} eliminado del sistema.`);
             closeRequestDetail();
             fetchRefundRequests();
         } else {
@@ -215,10 +231,12 @@ function applyFilters() {
     }
     
     filtered.forEach(request => {
+        const isSelected = selectedIds.includes(request.id);
         const row = document.createElement('div');
-        row.className = 'request-item-row';
+        row.className = `request-item-row${isSelected ? ' row-selected' : ''}`;
+        row.setAttribute('data-id', request.id);
         row.onclick = (e) => {
-            if (e.target.closest('.btn') || e.target.closest('.btn-sm')) return;
+            if (e.target.closest('.col-select') || e.target.closest('.btn') || e.target.closest('input[type="checkbox"]')) return;
             openRequestDetail(request.id);
         };
         
@@ -237,15 +255,15 @@ function applyFilters() {
         const productsHTML = request.products.map(p => `<span class="admin-prod-tag">${p.name}</span>`).join(' ');
         
         row.innerHTML = `
+            <div class="col-select">
+                <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="handleCheckboxClick(this, '${request.id}', event)">
+            </div>
             <div class="col-client">
                 <span class="client-name-bold">${request.name}</span>
                 <span class="client-contact-sub">${request.email}</span>
             </div>
             <div class="col-products">
                 ${productsHTML}
-            </div>
-            <div class="col-reason">
-                <span class="admin-prod-tag" style="background: rgba(255, 166, 0, 0.1); color: var(--accent); border-color: rgba(255, 166, 0, 0.2);">${request.reasonText}</span>
             </div>
             <div class="col-date">
                 ${formattedDate}
@@ -254,11 +272,203 @@ function applyFilters() {
                 <span class="status-badge ${statusClass}">${statusText}</span>
             </div>
             <div class="col-actions">
-                <button class="btn btn-primary btn-sm" onclick="openRequestDetail('${request.id}')">Ver Detalle</button>
+                <button class="btn btn-primary btn-sm" onclick="openRequestDetail('${request.id}')">Ver Detalles</button>
             </div>
         `;
         
         container.appendChild(row);
+    });
+}
+
+/* ==========================================================================
+   CHECKBOX SELECTION & BULK ACTIONS
+   ========================================================================== */
+
+function handleCheckboxClick(checkboxEl, id, event) {
+    event.stopPropagation();
+    const row = checkboxEl.closest('.request-item-row');
+    
+    if (checkboxEl.checked) {
+        if (!selectedIds.includes(id)) selectedIds.push(id);
+        if (row) row.classList.add('row-selected');
+    } else {
+        selectedIds = selectedIds.filter(selectedId => selectedId !== id);
+        if (row) row.classList.remove('row-selected');
+        
+        // Uncheck master select
+        document.getElementById('master-select').checked = false;
+    }
+    updateBulkActionsBar();
+}
+
+function toggleSelectAll(masterCheckbox) {
+    const listRows = document.querySelectorAll('.request-item-row');
+    selectedIds = [];
+    
+    listRows.forEach(row => {
+        const id = row.getAttribute('data-id');
+        const checkbox = row.querySelector('.col-select input[type="checkbox"]');
+        
+        if (masterCheckbox.checked) {
+            selectedIds.push(id);
+            if (checkbox) checkbox.checked = true;
+            row.classList.add('row-selected');
+        } else {
+            if (checkbox) checkbox.checked = false;
+            row.classList.remove('row-selected');
+        }
+    });
+    
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const countEl = document.getElementById('bulk-selected-count');
+    
+    if (selectedIds.length > 0) {
+        countEl.innerText = selectedIds.length;
+        bar.style.display = 'flex';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+async function handleBulkStatus(newStatus) {
+    if (!confirm(`¿Estás seguro de que deseas marcar ${selectedIds.length} solicitudes como ${newStatus}?`)) return;
+
+    let successCount = 0;
+    for (const id of selectedIds) {
+        try {
+            const response = await fetch('/api/refunds', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': adminPassword
+                },
+                body: JSON.stringify({ id, status: newStatus })
+            });
+            if (response.status === 200) successCount++;
+        } catch (err) {
+            console.error(`Error updating bulk status for ${id}:`, err);
+        }
+    }
+    
+    addAuditLog(`Acción masiva: ${successCount} tickets marcados como ${newStatus}.`);
+    fetchRefundRequests();
+}
+
+async function handleBulkDelete() {
+    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente estas ${selectedIds.length} solicitudes?`)) return;
+
+    let successCount = 0;
+    for (const id of selectedIds) {
+        try {
+            const response = await fetch(`/api/refunds?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': adminPassword
+                }
+            });
+            if (response.status === 200) successCount++;
+        } catch (err) {
+            console.error(`Error deleting bulk item ${id}:`, err);
+        }
+    }
+    
+    addAuditLog(`Eliminación masiva: ${successCount} registros eliminados del sistema.`);
+    fetchRefundRequests();
+}
+
+/* ==========================================================================
+   PRODUCT DISTRIBUTION WIDGET
+   ========================================================================== */
+
+function updateProductDistribution() {
+    const widget = document.getElementById('product-distribution-widget');
+    widget.innerHTML = '';
+
+    if (refundRequests.length === 0) {
+        widget.innerHTML = '<div class="no-data" style="padding: 10px 0;">No hay datos estadísticos.</div>';
+        return;
+    }
+
+    const prodCounts = {};
+    let totalProdSelections = 0;
+
+    refundRequests.forEach(req => {
+        req.products.forEach(p => {
+            prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
+            totalProdSelections++;
+        });
+    });
+
+    Object.keys(prodCounts).forEach(name => {
+        const count = prodCounts[name];
+        const percentage = Math.round((count / totalProdSelections) * 100);
+
+        const distItem = document.createElement('div');
+        distItem.className = 'prod-dist-item';
+        distItem.innerHTML = `
+            <div class="prod-dist-info">
+                <span>${name}</span>
+                <strong>${count} (${percentage}%)</strong>
+            </div>
+            <div class="prod-dist-bar-bg">
+                <div class="prod-dist-bar-fill" style="width: ${percentage}%"></div>
+            </div>
+        `;
+        widget.appendChild(distItem);
+    });
+}
+
+/* ==========================================================================
+   AUDIT LOG WIDGET
+   ========================================================================== */
+
+function addAuditLog(text) {
+    auditLogs.unshift({
+        text,
+        time: new Date()
+    });
+    // Limit to latest 10 logs
+    if (auditLogs.length > 10) auditLogs.pop();
+    
+    updateAuditLogWidget();
+}
+
+function updateAuditLogWidget() {
+    const widget = document.getElementById('audit-log-widget');
+    if (!widget) return;
+    
+    widget.innerHTML = '';
+    
+    auditLogs.forEach(log => {
+        const item = document.createElement('div');
+        item.className = 'audit-log-item';
+        
+        // Style indicator depending on type of action
+        if (log.text.includes('eliminado') || log.text.includes('Eliminación')) {
+            item.style.borderLeftColor = 'var(--danger)';
+        } else if (log.text.includes('reembolsada') || log.text.includes('reembolsado') || log.text.includes('masiva')) {
+            item.style.borderLeftColor = 'var(--success)';
+        } else if (log.text.includes('iniciada') || log.text.includes('activa')) {
+            item.style.borderLeftColor = 'var(--primary)';
+        }
+        
+        const timeDiff = Math.round((new Date() - log.time) / 1000);
+        let timeString = 'Hace un momento';
+        if (timeDiff >= 60) {
+            timeString = `Hace ${Math.round(timeDiff / 60)} min`;
+        } else if (timeDiff > 10) {
+            timeString = `Hace ${timeDiff} seg`;
+        }
+        
+        item.innerHTML = `
+            ${log.text}
+            <span class="audit-time">${timeString}</span>
+        `;
+        widget.appendChild(item);
     });
 }
 
@@ -364,7 +574,7 @@ function closeRequestDetail() {
 }
 
 /* ==========================================================================
-   CLIPBOARD UTILITIES & CSV EXPORT
+   EXPORTS & CLIPBOARD UTILITIES
    ========================================================================== */
 
 function copyToClipboard(text, btnElement, successMsg = '¡Copiado!') {
@@ -405,37 +615,47 @@ Fecha de Registro: ${new Date(req.date).toLocaleDateString('es-ES')}`;
     copyToClipboard(textToCopy, btnElement, '¡Datos Copiados!');
 }
 
-function exportData() {
+function exportData(format = 'csv') {
     if (refundRequests.length === 0) {
         alert('No hay solicitudes para exportar.');
         return;
     }
     
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
-    csvContent += "ID,Cliente,Correo,Productos,Motivo,Comentarios,Fecha,Estado\n";
+    let mimeType = 'text/csv';
+    let fileExtension = 'csv';
+    let dataContent = '';
     
-    refundRequests.forEach(req => {
-        const id = req.id;
-        const name = `"${req.name.replace(/"/g, '""')}"`;
-        const email = `"${req.email.replace(/"/g, '""')}"`;
-        const productsList = `"${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"`;
-        const reason = `"${req.reasonText.replace(/"/g, '""')}"`;
-        const feedback = `"${req.feedback.replace(/"/g, '""')}"`;
-        const date = req.date;
-        const status = req.status;
-        
-        const row = [id, name, email, productsList, reason, feedback, date, status].join(",");
-        csvContent += row + "\n";
-    });
+    if (format === 'csv') {
+        dataContent = "\uFEFFID,Cliente,Correo,Productos,Motivo,Comentarios,Fecha,Estado\n";
+        refundRequests.forEach(req => {
+            const id = req.id;
+            const name = `"${req.name.replace(/"/g, '""')}"`;
+            const email = `"${req.email.replace(/"/g, '""')}"`;
+            const productsList = `"${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"`;
+            const reason = `"${req.reasonText.replace(/"/g, '""')}"`;
+            const feedback = `"${req.feedback.replace(/"/g, '""')}"`;
+            const date = req.date;
+            const status = req.status;
+            
+            const row = [id, name, email, productsList, reason, feedback, date, status].join(",");
+            dataContent += row + "\n";
+        });
+    } else if (format === 'json') {
+        mimeType = 'application/json';
+        fileExtension = 'json';
+        dataContent = JSON.stringify(refundRequests, null, 2);
+    }
     
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([dataContent], { type: `${mimeType};charset=utf-8;` });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `solicitudes_reembolso_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `solicitudes_reembolso_${new Date().toISOString().slice(0,10)}.${fileExtension}`);
     document.body.appendChild(link); 
     
     link.click();
     document.body.removeChild(link);
+    addAuditLog(`Exportado registro completo como ${format.toUpperCase()}.`);
 }
 
 function showInputError(inputEl, message) {

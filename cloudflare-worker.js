@@ -1452,19 +1452,17 @@ select option {
                         </div>
                     </div>
                     
-                    <div class="telegram-box" style="margin: 25px 0 15px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; text-align: left;">
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
-                            👉 Para procesar tu reembolso más rápido, haz clic en el botón de abajo. Se **copiará automáticamente** tu mensaje de soporte y se abrirá el Telegram de <strong>@MartinRezende</strong> para que puedas pegarlo y enviarlo directamente.
+                    <div class="success-actions" style="margin-top: 30px;">
+                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5;">
+                            Para procesar tu reembolso más rápido, haz clic en el botón de abajo para enviar tu mensaje de soporte ya estructurado directamente al Telegram.
                         </p>
-                        <textarea id="telegram-message-box" readonly style="width: 100%; height: 110px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; color: #fff; padding: 10px; font-family: monospace; font-size: 0.8rem; resize: none;"></textarea>
-                    </div>
-                    
-                    <div class="success-actions">
+                        <textarea id="telegram-message-box" style="display: none;"></textarea>
+                        
                         <button type="button" class="btn btn-primary btn-wide" id="telegram-redirect-btn" onclick="redirectToTelegram()">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="icon-left" style="margin-right: 8px;">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.89 1.2-5.33 3.52-.5.35-.96.52-1.37.51-.45-.01-1.32-.26-1.97-.47-.8-.26-1.43-.4-1.38-.85.03-.24.35-.48.97-.73 3.8-1.65 6.33-2.73 7.6-3.26 3.62-1.5 4.37-1.76 4.86-1.77.11 0 .35.03.5.15.13.1.17.24.18.34 0 .07.01.22 0 .33z"/>
                             </svg>
-                            Copiar Mensaje e Ir a Telegram
+                            Enviar al Telegram
                         </button>
                         <button type="button" class="btn btn-secondary btn-wide" onclick="resetForm()" style="margin-top: 10px;">
                             Volver al Inicio
@@ -1732,9 +1730,42 @@ async function submitRefundForm() {
     const originalText = nextBtn.innerHTML;
     nextBtn.disabled = true;
     nextBtn.innerHTML = 'Enviando...';
+
+    // Helper to render the success screen
+    const showSuccessScreen = () => {
+        document.getElementById('receipt-id').innerText = ticketId;
+        document.getElementById('receipt-name').innerText = name;
+        document.getElementById('receipt-email').innerText = email;
+        document.getElementById('receipt-products').innerText = selectedProducts.map(p => p.name).join(', ');
+        
+        const telegramMsg = \`SOLICITUD DE REEMBOLSO MANUAL
+----------------------------------------
+Ticket ID: \${ticketId}
+Cliente: \${name}
+Correo: \${email}
+Productos: \${selectedProducts.map(p => p.name).join(', ')}
+Motivo: \${reasonText}
+Comentarios: "\${feedback}"\`;
+        
+        document.getElementById('telegram-message-box').value = telegramMsg;
+        document.getElementById('client-section').style.display = 'none';
+        document.getElementById('success-section').style.display = 'block';
+        window.scrollTo({ top: 50, behavior: 'smooth' });
+    };
+
+    // If running offline/locally via file:// protocol, simulate success for testing
+    if (window.location.protocol === 'file:') {
+        console.log('Local environment detected (file://). Simulating API response...');
+        setTimeout(() => {
+            showSuccessScreen();
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = originalText;
+        }, 800);
+        return;
+    }
     
     try {
-        // Send request POST to server API
+        // Send request POST to server API (Cloudflare Pages/Worker backend)
         const response = await fetch('/api/refunds', {
             method: 'POST',
             headers: {
@@ -1744,27 +1775,7 @@ async function submitRefundForm() {
         });
 
         if (response.status === 200) {
-            // Populate success screen details
-            document.getElementById('receipt-id').innerText = ticketId;
-            document.getElementById('receipt-name').innerText = name;
-            document.getElementById('receipt-email').innerText = email;
-            document.getElementById('receipt-products').innerText = selectedProducts.map(p => p.name).join(', ');
-            
-            // Populate Telegram message details
-            const telegramMsg = \`Hola, solicito el reembolso de mi compra.
-Ticket: \${ticketId}
-Cliente: \${name}
-Correo: \${email}
-Productos: \${selectedProducts.map(p => p.name).join(', ')}
-Motivo: \${reasonText}
-Comentarios: "\${feedback}"\`;
-            
-            document.getElementById('telegram-message-box').value = telegramMsg;
-
-            // Display Success screen
-            document.getElementById('client-section').style.display = 'none';
-            document.getElementById('success-section').style.display = 'block';
-            window.scrollTo({ top: 50, behavior: 'smooth' });
+            showSuccessScreen();
         } else {
             alert('Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.');
         }
@@ -1780,30 +1791,18 @@ Comentarios: "\${feedback}"\`;
 function redirectToTelegram() {
     const messageText = document.getElementById('telegram-message-box').value;
     
-    // Copy message to clipboard
-    navigator.clipboard.writeText(messageText).then(() => {
-        // Show success indicator on button
-        const btn = document.getElementById('telegram-redirect-btn');
-        const originalHTML = btn.innerHTML;
-        
-        btn.innerHTML = \`
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="icon-left" style="margin-right: 8px;">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-            </svg>
-            ¡Mensaje Copiado! Redirigiendo...
-        \`;
-        
-        setTimeout(() => {
-            btn.innerHTML = originalHTML;
-        }, 2000);
+    // Copy to clipboard as a backup
+    try {
+        navigator.clipboard.writeText(messageText);
+    } catch (e) {
+        console.error('Backup copy failed:', e);
+    }
 
-        // Open Telegram chat
-        window.open('https://t.me/MartinRezende', '_blank');
-    }).catch(err => {
-        console.error('Error copying text:', err);
-        // Fallback: open anyway if copy fails
-        window.open('https://t.me/MartinRezende', '_blank');
-    });
+    // Generate Telegram share link with pre-filled message text
+    const shareUrl = \`https://t.me/share/url?url=&text=\${encodeURIComponent(messageText)}\`;
+    
+    // Open Telegram share dialog
+    window.open(shareUrl, '_blank');
 }
 
 function resetForm() {
@@ -1838,13 +1837,190 @@ const HTML_ADMIN = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soporte | Panel Administrativo</title>
+    <title>Soporte | Panel Administrativo Premium</title>
     <!-- Google Fonts: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Shared Stylesheet -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Admin Dashboard Specific Premium Styling -->
+    <style>
+        .admin-layout-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 25px;
+            margin-top: 25px;
+        }
+        
+        @media (max-width: 900px) {
+            .admin-layout-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .stat-box {
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+        
+        .stat-box:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--accent);
+        }
+        
+        .admin-sidebar-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .admin-sidebar-card h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 10px;
+        }
+        
+        /* Product progress bars list */
+        .prod-dist-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .prod-dist-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .prod-dist-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        
+        .prod-dist-bar-bg {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .prod-dist-bar-fill {
+            height: 100%;
+            background: var(--primary-grad);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Action Audit Log */
+        .audit-log-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        .audit-log-item {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.01);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+        
+        .audit-time {
+            display: block;
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.3);
+            margin-top: 3px;
+        }
+        
+        /* Bulk actions panel */
+        .bulk-actions-panel {
+            background: rgba(255, 166, 0, 0.07);
+            border: 1px solid rgba(255, 166, 0, 0.2);
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .bulk-text {
+            font-size: 0.9rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+        
+        .bulk-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Table enhancements */
+        .col-select {
+            width: 40px;
+            flex: 0 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .col-select input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+        
+        .request-item-row {
+            transition: background 0.2s ease;
+        }
+        
+        .request-item-row.row-selected {
+            background: rgba(255, 166, 0, 0.03) !important;
+            border-left: 2px solid var(--accent);
+        }
+        
+        .col-actions {
+            flex: 0 0 140px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        
+        .col-actions .btn {
+            width: 120px;
+            min-width: 120px;
+            white-space: nowrap;
+            text-align: center;
+            justify-content: center;
+        }
+    </style>
 <style>
 /* ==========================================================================
    IA TRADER - SYSTEM STYLES (PREMIUM DARK & GLASSMORPHISM)
@@ -3088,12 +3264,12 @@ select option {
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
 
-    <div class="container">
+    <div class="container" style="max-width: 1200px;">
         <!-- Header -->
         <header class="app-header">
             <div class="logo-container">
                 <div class="logo-text">
-                    <span class="logo-title">Panel Administrativo</span>
+                    <span class="logo-title">Gestión de Reembolsos</span>
                 </div>
             </div>
             <button id="logout-btn" class="btn btn-secondary btn-sm" style="display: none;" onclick="logoutAdmin()">
@@ -3105,12 +3281,12 @@ select option {
         <main class="main-content">
             
             <!-- ADMIN LOGIN CARD -->
-            <section id="login-section" class="card-glass" style="max-width: 480px; margin: 50px auto;">
+            <section id="login-section" class="card-glass" style="max-width: 450px; margin: 60px auto;">
                 <div class="card-header-accent admin-accent"></div>
                 <div class="card-body">
                     <div class="form-intro">
                         <h2>Acceso Soporte</h2>
-                        <p>Ingresa la contraseña para gestionar las solicitudes de reembolso.</p>
+                        <p>Ingresa la contraseña para entrar al sistema administrativo.</p>
                     </div>
                     
                     <div class="form-group" style="margin-top: 15px;">
@@ -3126,14 +3302,16 @@ select option {
             <!-- ADMIN DASHBOARD SECTION -->
             <section id="admin-section" class="card-glass admin-card" style="display: none;">
                 <div class="card-header-accent admin-accent"></div>
-                <div class="card-body">
+                <div class="card-body" style="padding: 30px;">
+                    
+                    <!-- Dashboard Header -->
                     <div class="admin-header">
                         <div>
-                            <h1>Solicitudes de Reembolso</h1>
-                            <p>Gestiona solicitudes pendientes, marca como procesado y exporta registros en tiempo real.</p>
+                            <h1>Panel de Control Administrativo</h1>
+                            <p>Gestión automatizada de devoluciones, análisis y auditorías del sistema.</p>
                         </div>
                         <div class="admin-top-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="exportData()">
+                            <button class="btn btn-secondary btn-sm" onclick="exportData('csv')">
                                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="icon-left">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="7 10 12 15 17 10"></polyline>
@@ -3141,62 +3319,128 @@ select option {
                                 </svg>
                                 Exportar (CSV)
                             </button>
+                            <button class="btn btn-secondary btn-sm" onclick="exportData('json')">
+                                Exportar (JSON)
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="fetchRefundRequests()">
+                                🔄 Actualizar
+                            </button>
                         </div>
                     </div>
 
                     <!-- Statistics Widgets -->
                     <div class="admin-stats-grid">
-                        <div class="stat-box">
+                        <div class="stat-box" onclick="setFilter('pending')">
                             <span class="stat-title">Pendientes</span>
                             <span class="stat-value text-warning" id="stat-pending">0</span>
                         </div>
-                        <div class="stat-box">
+                        <div class="stat-box" onclick="setFilter('refunded')">
                             <span class="stat-title">Reembolsados</span>
                             <span class="stat-value text-success" id="stat-refunded">0</span>
                         </div>
-                        <div class="stat-box">
+                        <div class="stat-box" onclick="setFilter('rejected')">
                             <span class="stat-title">Rechazados</span>
                             <span class="stat-value text-danger" id="stat-rejected">0</span>
                         </div>
-                        <div class="stat-box">
-                            <span class="stat-title">Total Recibido</span>
+                        <div class="stat-box" onclick="setFilter('all')">
+                            <span class="stat-title">Total Solicitudes</span>
                             <span class="stat-value" id="stat-total">0</span>
                         </div>
                     </div>
 
-                    <!-- Filters & Search -->
-                    <div class="admin-filter-bar">
-                        <div class="search-wrap">
-                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="search-icon">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            <input type="text" id="admin-search" placeholder="Buscar por nombre, correo o ID..." oninput="applyFilters()">
-                        </div>
+                    <!-- Two Column Grid Layout (Main Table + Sidebar) -->
+                    <div class="admin-layout-grid">
                         
-                        <div class="filter-tabs">
-                            <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">Todos</button>
-                            <button class="filter-tab" data-filter="pending" onclick="setFilter('pending')">Pendientes</button>
-                            <button class="filter-tab" data-filter="refunded" onclick="setFilter('refunded')">Reembolsados</button>
-                            <button class="filter-tab" data-filter="rejected" onclick="setFilter('rejected')">Rechazados</button>
-                        </div>
-                    </div>
+                        <!-- Left Side: Table and Controls -->
+                        <div>
+                            <!-- Bulk Actions Panel (Hidden by default, shown when items checked) -->
+                            <div id="bulk-actions-bar" class="bulk-actions-panel" style="display: none;">
+                                <span class="bulk-text"><span id="bulk-selected-count">0</span> ítems seleccionados</span>
+                                <div class="bulk-btn-group">
+                                    <button class="btn btn-primary btn-sm" onclick="handleBulkStatus('refunded')" style="padding: 6px 12px; font-size: 0.8rem;">
+                                        Marcar Reembolsado
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" onclick="handleBulkStatus('rejected')" style="padding: 6px 12px; font-size: 0.8rem;">
+                                        Marcar Rechazado
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="handleBulkDelete()" style="padding: 6px 12px; font-size: 0.8rem;">
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
 
-                    <!-- Requests Content (Table / Card view for mobile) -->
-                    <div class="admin-requests-container">
-                        <div class="requests-header-row">
-                            <div class="col-client">Cliente / Contacto</div>
-                            <div class="col-products">Productos</div>
-                            <div class="col-reason">Motivo</div>
-                            <div class="col-date">Fecha</div>
-                            <div class="col-status">Estado</div>
-                            <div class="col-actions">Acción rápida</div>
+                            <!-- Filters & Search -->
+                            <div class="admin-filter-bar">
+                                <div class="search-wrap">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" class="search-icon">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                    <input type="text" id="admin-search" placeholder="Buscar por cliente, correo o ticket ID..." oninput="applyFilters()">
+                                </div>
+                                
+                                <div class="filter-tabs">
+                                    <button class="filter-tab active" id="tab-all" data-filter="all" onclick="setFilter('all')">Todos</button>
+                                    <button class="filter-tab" id="tab-pending" data-filter="pending" onclick="setFilter('pending')">Pendientes</button>
+                                    <button class="filter-tab" id="tab-refunded" data-filter="refunded" onclick="setFilter('refunded')">Reembolsados</button>
+                                    <button class="filter-tab" id="tab-rejected" data-filter="rejected" onclick="setFilter('rejected')">Rechazados</button>
+                                </div>
+                            </div>
+
+                            <!-- Requests List Container -->
+                            <div class="admin-requests-container">
+                                <div class="requests-header-row">
+                                    <div class="col-select">
+                                        <input type="checkbox" id="master-select" onclick="toggleSelectAll(this)">
+                                    </div>
+                                    <div class="col-client">Cliente / Contacto</div>
+                                    <div class="col-products">Productos</div>
+                                    <div class="col-date">Fecha</div>
+                                    <div class="col-status">Estado</div>
+                                    <div class="col-actions">Acción</div>
+                                </div>
+                                
+                                <div id="requests-list" class="requests-list">
+                                    <!-- Populated by JS -->
+                                    <div class="no-data">Cargando datos...</div>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <div id="requests-list" class="requests-list">
-                            <!-- Populated by JS -->
-                            <div class="no-data">Cargando solicitudes desde el servidor...</div>
+
+                        <!-- Right Side: Sidebar Widgets -->
+                        <div>
+                            <!-- Widget 1: Product Distribution -->
+                            <div class="admin-sidebar-card">
+                                <h3>
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </svg>
+                                    Distribución de Productos
+                                </h3>
+                                <div class="prod-dist-list" id="product-distribution-widget">
+                                    <!-- Populated dynamically -->
+                                    <div class="no-data" style="padding: 10px 0;">No hay datos estadísticos.</div>
+                                </div>
+                            </div>
+
+                            <!-- Widget 2: Audit Logs -->
+                            <div class="admin-sidebar-card">
+                                <h3>
+                                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    Historial de Acciones
+                                </h3>
+                                <div class="audit-log-list" id="audit-log-widget">
+                                    <div class="audit-log-item" style="border-left-color: rgba(255,255,255,0.1);">
+                                        Sesión administrativa iniciada con éxito.
+                                        <span class="audit-time">Hace un momento</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             </section>
@@ -3208,7 +3452,7 @@ select option {
         </footer>
     </div>
 
-    <!-- REQUEST DETAIL MODAL (FOR VIEWING FULL RECOMPLAINT DETAILS) -->
+    <!-- REQUEST DETAIL MODAL -->
     <div id="request-detail-modal" class="modal-overlay" style="display: none;">
         <div class="modal-card modal-large">
             <div class="modal-header">
@@ -3235,12 +3479,16 @@ select option {
     <!-- Admin JavaScript -->
     <script>
 /* ==========================================================================
-   IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (CLOUDFLARE SERVERLESS INTERACTION)
+   IA TRADER - ADMINISTRATIVE DASHBOARD LOGIC (PREMIUM VERSION)
    ========================================================================== */
 
 let adminPassword = '';
 let refundRequests = [];
+let selectedIds = [];
 let currentFilter = 'all';
+let auditLogs = [
+    { text: 'Sistema de control iniciado.', time: new Date() }
+];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -3265,6 +3513,7 @@ function showDashboard() {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('admin-section').style.display = 'block';
     document.getElementById('logout-btn').style.display = 'block';
+    addAuditLog('Sesión administrativa activa.');
     fetchRefundRequests();
 }
 
@@ -3311,6 +3560,7 @@ function logoutAdmin() {
     adminPassword = '';
     sessionStorage.removeItem('admin_password');
     refundRequests = [];
+    selectedIds = [];
     showLogin();
 }
 
@@ -3320,7 +3570,13 @@ function logoutAdmin() {
 
 async function fetchRefundRequests() {
     const listContainer = document.getElementById('requests-list');
-    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes desde el servidor Cloudflare...</div>';
+    listContainer.innerHTML = '<div class="no-data">Cargando solicitudes desde el servidor...</div>';
+    
+    // Clear selection
+    selectedIds = [];
+    updateBulkActionsBar();
+    const masterSelect = document.getElementById('master-select');
+    if (masterSelect) masterSelect.checked = false;
 
     try {
         const response = await fetch('/api/refunds', {
@@ -3333,6 +3589,8 @@ async function fetchRefundRequests() {
         if (response.status === 200) {
             refundRequests = await response.json();
             updateMetrics();
+            updateProductDistribution();
+            updateAuditLogWidget();
             applyFilters();
         } else if (response.status === 401) {
             alert('Sesión expirada o no autorizada. Por favor inicia sesión de nuevo.');
@@ -3342,7 +3600,7 @@ async function fetchRefundRequests() {
         }
     } catch (err) {
         console.error('Error fetching data:', err);
-        listContainer.innerHTML = '<div class="no-data">Error al cargar datos. Asegúrate de configurar la base de datos KV en Cloudflare.</div>';
+        listContainer.innerHTML = '<div class="no-data">Error de conexión. Asegúrate de iniciar tu servidor de desarrollo con "node server.js".</div>';
     }
 }
 
@@ -3361,6 +3619,7 @@ async function changeRequestStatus(requestId, newStatus) {
         });
 
         if (response.status === 200) {
+            addAuditLog(\`Ticket \${requestId} marcado como \${newStatus}.\`);
             closeRequestDetail();
             fetchRefundRequests();
         } else {
@@ -3384,6 +3643,7 @@ async function deleteRequest(requestId) {
         });
 
         if (response.status === 200) {
+            addAuditLog(\`Registro \${requestId} eliminado del sistema.\`);
             closeRequestDetail();
             fetchRefundRequests();
         } else {
@@ -3451,10 +3711,12 @@ function applyFilters() {
     }
     
     filtered.forEach(request => {
+        const isSelected = selectedIds.includes(request.id);
         const row = document.createElement('div');
-        row.className = 'request-item-row';
+        row.className = \`request-item-row\${isSelected ? ' row-selected' : ''}\`;
+        row.setAttribute('data-id', request.id);
         row.onclick = (e) => {
-            if (e.target.closest('.btn') || e.target.closest('.btn-sm')) return;
+            if (e.target.closest('.col-select') || e.target.closest('.btn') || e.target.closest('input[type="checkbox"]')) return;
             openRequestDetail(request.id);
         };
         
@@ -3473,15 +3735,15 @@ function applyFilters() {
         const productsHTML = request.products.map(p => \`<span class="admin-prod-tag">\${p.name}</span>\`).join(' ');
         
         row.innerHTML = \`
+            <div class="col-select">
+                <input type="checkbox" \${isSelected ? 'checked' : ''} onclick="handleCheckboxClick(this, '\${request.id}', event)">
+            </div>
             <div class="col-client">
                 <span class="client-name-bold">\${request.name}</span>
                 <span class="client-contact-sub">\${request.email}</span>
             </div>
             <div class="col-products">
                 \${productsHTML}
-            </div>
-            <div class="col-reason">
-                <span class="admin-prod-tag" style="background: rgba(255, 166, 0, 0.1); color: var(--accent); border-color: rgba(255, 166, 0, 0.2);">\${request.reasonText}</span>
             </div>
             <div class="col-date">
                 \${formattedDate}
@@ -3490,11 +3752,203 @@ function applyFilters() {
                 <span class="status-badge \${statusClass}">\${statusText}</span>
             </div>
             <div class="col-actions">
-                <button class="btn btn-primary btn-sm" onclick="openRequestDetail('\${request.id}')">Ver Detalle</button>
+                <button class="btn btn-primary btn-sm" onclick="openRequestDetail('\${request.id}')">Ver Detalles</button>
             </div>
         \`;
         
         container.appendChild(row);
+    });
+}
+
+/* ==========================================================================
+   CHECKBOX SELECTION & BULK ACTIONS
+   ========================================================================== */
+
+function handleCheckboxClick(checkboxEl, id, event) {
+    event.stopPropagation();
+    const row = checkboxEl.closest('.request-item-row');
+    
+    if (checkboxEl.checked) {
+        if (!selectedIds.includes(id)) selectedIds.push(id);
+        if (row) row.classList.add('row-selected');
+    } else {
+        selectedIds = selectedIds.filter(selectedId => selectedId !== id);
+        if (row) row.classList.remove('row-selected');
+        
+        // Uncheck master select
+        document.getElementById('master-select').checked = false;
+    }
+    updateBulkActionsBar();
+}
+
+function toggleSelectAll(masterCheckbox) {
+    const listRows = document.querySelectorAll('.request-item-row');
+    selectedIds = [];
+    
+    listRows.forEach(row => {
+        const id = row.getAttribute('data-id');
+        const checkbox = row.querySelector('.col-select input[type="checkbox"]');
+        
+        if (masterCheckbox.checked) {
+            selectedIds.push(id);
+            if (checkbox) checkbox.checked = true;
+            row.classList.add('row-selected');
+        } else {
+            if (checkbox) checkbox.checked = false;
+            row.classList.remove('row-selected');
+        }
+    });
+    
+    updateBulkActionsBar();
+}
+
+function updateBulkActionsBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const countEl = document.getElementById('bulk-selected-count');
+    
+    if (selectedIds.length > 0) {
+        countEl.innerText = selectedIds.length;
+        bar.style.display = 'flex';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+async function handleBulkStatus(newStatus) {
+    if (!confirm(\`¿Estás seguro de que deseas marcar \${selectedIds.length} solicitudes como \${newStatus}?\`)) return;
+
+    let successCount = 0;
+    for (const id of selectedIds) {
+        try {
+            const response = await fetch('/api/refunds', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': adminPassword
+                },
+                body: JSON.stringify({ id, status: newStatus })
+            });
+            if (response.status === 200) successCount++;
+        } catch (err) {
+            console.error(\`Error updating bulk status for \${id}:\`, err);
+        }
+    }
+    
+    addAuditLog(\`Acción masiva: \${successCount} tickets marcados como \${newStatus}.\`);
+    fetchRefundRequests();
+}
+
+async function handleBulkDelete() {
+    if (!confirm(\`¿Estás seguro de que deseas eliminar permanentemente estas \${selectedIds.length} solicitudes?\`)) return;
+
+    let successCount = 0;
+    for (const id of selectedIds) {
+        try {
+            const response = await fetch(\`/api/refunds?id=\${encodeURIComponent(id)}\`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': adminPassword
+                }
+            });
+            if (response.status === 200) successCount++;
+        } catch (err) {
+            console.error(\`Error deleting bulk item \${id}:\`, err);
+        }
+    }
+    
+    addAuditLog(\`Eliminación masiva: \${successCount} registros eliminados del sistema.\`);
+    fetchRefundRequests();
+}
+
+/* ==========================================================================
+   PRODUCT DISTRIBUTION WIDGET
+   ========================================================================== */
+
+function updateProductDistribution() {
+    const widget = document.getElementById('product-distribution-widget');
+    widget.innerHTML = '';
+
+    if (refundRequests.length === 0) {
+        widget.innerHTML = '<div class="no-data" style="padding: 10px 0;">No hay datos estadísticos.</div>';
+        return;
+    }
+
+    const prodCounts = {};
+    let totalProdSelections = 0;
+
+    refundRequests.forEach(req => {
+        req.products.forEach(p => {
+            prodCounts[p.name] = (prodCounts[p.name] || 0) + 1;
+            totalProdSelections++;
+        });
+    });
+
+    Object.keys(prodCounts).forEach(name => {
+        const count = prodCounts[name];
+        const percentage = Math.round((count / totalProdSelections) * 100);
+
+        const distItem = document.createElement('div');
+        distItem.className = 'prod-dist-item';
+        distItem.innerHTML = \`
+            <div class="prod-dist-info">
+                <span>\${name}</span>
+                <strong>\${count} (\${percentage}%)</strong>
+            </div>
+            <div class="prod-dist-bar-bg">
+                <div class="prod-dist-bar-fill" style="width: \${percentage}%"></div>
+            </div>
+        \`;
+        widget.appendChild(distItem);
+    });
+}
+
+/* ==========================================================================
+   AUDIT LOG WIDGET
+   ========================================================================== */
+
+function addAuditLog(text) {
+    auditLogs.unshift({
+        text,
+        time: new Date()
+    });
+    // Limit to latest 10 logs
+    if (auditLogs.length > 10) auditLogs.pop();
+    
+    updateAuditLogWidget();
+}
+
+function updateAuditLogWidget() {
+    const widget = document.getElementById('audit-log-widget');
+    if (!widget) return;
+    
+    widget.innerHTML = '';
+    
+    auditLogs.forEach(log => {
+        const item = document.createElement('div');
+        item.className = 'audit-log-item';
+        
+        // Style indicator depending on type of action
+        if (log.text.includes('eliminado') || log.text.includes('Eliminación')) {
+            item.style.borderLeftColor = 'var(--danger)';
+        } else if (log.text.includes('reembolsada') || log.text.includes('reembolsado') || log.text.includes('masiva')) {
+            item.style.borderLeftColor = 'var(--success)';
+        } else if (log.text.includes('iniciada') || log.text.includes('activa')) {
+            item.style.borderLeftColor = 'var(--primary)';
+        }
+        
+        const timeDiff = Math.round((new Date() - log.time) / 1000);
+        let timeString = 'Hace un momento';
+        if (timeDiff >= 60) {
+            timeString = \`Hace \${Math.round(timeDiff / 60)} min\`;
+        } else if (timeDiff > 10) {
+            timeString = \`Hace \${timeDiff} seg\`;
+        }
+        
+        item.innerHTML = \`
+            \${log.text}
+            <span class="audit-time">\${timeString}</span>
+        \`;
+        widget.appendChild(item);
     });
 }
 
@@ -3600,7 +4054,7 @@ function closeRequestDetail() {
 }
 
 /* ==========================================================================
-   CLIPBOARD UTILITIES & CSV EXPORT
+   EXPORTS & CLIPBOARD UTILITIES
    ========================================================================== */
 
 function copyToClipboard(text, btnElement, successMsg = '¡Copiado!') {
@@ -3641,37 +4095,47 @@ Fecha de Registro: \${new Date(req.date).toLocaleDateString('es-ES')}\`;
     copyToClipboard(textToCopy, btnElement, '¡Datos Copiados!');
 }
 
-function exportData() {
+function exportData(format = 'csv') {
     if (refundRequests.length === 0) {
         alert('No hay solicitudes para exportar.');
         return;
     }
     
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
-    csvContent += "ID,Cliente,Correo,Productos,Motivo,Comentarios,Fecha,Estado\n";
+    let mimeType = 'text/csv';
+    let fileExtension = 'csv';
+    let dataContent = '';
     
-    refundRequests.forEach(req => {
-        const id = req.id;
-        const name = \`"\${req.name.replace(/"/g, '""')}"\`;
-        const email = \`"\${req.email.replace(/"/g, '""')}"\`;
-        const productsList = \`"\${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"\`;
-        const reason = \`"\${req.reasonText.replace(/"/g, '""')}"\`;
-        const feedback = \`"\${req.feedback.replace(/"/g, '""')}"\`;
-        const date = req.date;
-        const status = req.status;
-        
-        const row = [id, name, email, productsList, reason, feedback, date, status].join(",");
-        csvContent += row + "\n";
-    });
+    if (format === 'csv') {
+        dataContent = "\uFEFFID,Cliente,Correo,Productos,Motivo,Comentarios,Fecha,Estado\n";
+        refundRequests.forEach(req => {
+            const id = req.id;
+            const name = \`"\${req.name.replace(/"/g, '""')}"\`;
+            const email = \`"\${req.email.replace(/"/g, '""')}"\`;
+            const productsList = \`"\${req.products.map(p => p.name).join('; ').replace(/"/g, '""')}"\`;
+            const reason = \`"\${req.reasonText.replace(/"/g, '""')}"\`;
+            const feedback = \`"\${req.feedback.replace(/"/g, '""')}"\`;
+            const date = req.date;
+            const status = req.status;
+            
+            const row = [id, name, email, productsList, reason, feedback, date, status].join(",");
+            dataContent += row + "\n";
+        });
+    } else if (format === 'json') {
+        mimeType = 'application/json';
+        fileExtension = 'json';
+        dataContent = JSON.stringify(refundRequests, null, 2);
+    }
     
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([dataContent], { type: \`\${mimeType};charset=utf-8;\` });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", \`solicitudes_reembolso_\${new Date().toISOString().slice(0,10)}.csv\`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", \`solicitudes_reembolso_\${new Date().toISOString().slice(0,10)}.\${fileExtension}\`);
     document.body.appendChild(link); 
     
     link.click();
     document.body.removeChild(link);
+    addAuditLog(\`Exportado registro completo como \${format.toUpperCase()}.\`);
 }
 
 function showInputError(inputEl, message) {

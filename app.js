@@ -248,9 +248,42 @@ async function submitRefundForm() {
     const originalText = nextBtn.innerHTML;
     nextBtn.disabled = true;
     nextBtn.innerHTML = 'Enviando...';
+
+    // Helper to render the success screen
+    const showSuccessScreen = () => {
+        document.getElementById('receipt-id').innerText = ticketId;
+        document.getElementById('receipt-name').innerText = name;
+        document.getElementById('receipt-email').innerText = email;
+        document.getElementById('receipt-products').innerText = selectedProducts.map(p => p.name).join(', ');
+        
+        const telegramMsg = `SOLICITUD DE REEMBOLSO MANUAL
+----------------------------------------
+Ticket ID: ${ticketId}
+Cliente: ${name}
+Correo: ${email}
+Productos: ${selectedProducts.map(p => p.name).join(', ')}
+Motivo: ${reasonText}
+Comentarios: "${feedback}"`;
+        
+        document.getElementById('telegram-message-box').value = telegramMsg;
+        document.getElementById('client-section').style.display = 'none';
+        document.getElementById('success-section').style.display = 'block';
+        window.scrollTo({ top: 50, behavior: 'smooth' });
+    };
+
+    // If running offline/locally via file:// protocol, simulate success for testing
+    if (window.location.protocol === 'file:') {
+        console.log('Local environment detected (file://). Simulating API response...');
+        setTimeout(() => {
+            showSuccessScreen();
+            nextBtn.disabled = false;
+            nextBtn.innerHTML = originalText;
+        }, 800);
+        return;
+    }
     
     try {
-        // Send request POST to server API
+        // Send request POST to server API (Cloudflare Pages/Worker backend)
         const response = await fetch('/api/refunds', {
             method: 'POST',
             headers: {
@@ -260,27 +293,7 @@ async function submitRefundForm() {
         });
 
         if (response.status === 200) {
-            // Populate success screen details
-            document.getElementById('receipt-id').innerText = ticketId;
-            document.getElementById('receipt-name').innerText = name;
-            document.getElementById('receipt-email').innerText = email;
-            document.getElementById('receipt-products').innerText = selectedProducts.map(p => p.name).join(', ');
-            
-            // Populate Telegram message details
-            const telegramMsg = `Hola, solicito el reembolso de mi compra.
-Ticket: ${ticketId}
-Cliente: ${name}
-Correo: ${email}
-Productos: ${selectedProducts.map(p => p.name).join(', ')}
-Motivo: ${reasonText}
-Comentarios: "${feedback}"`;
-            
-            document.getElementById('telegram-message-box').value = telegramMsg;
-
-            // Display Success screen
-            document.getElementById('client-section').style.display = 'none';
-            document.getElementById('success-section').style.display = 'block';
-            window.scrollTo({ top: 50, behavior: 'smooth' });
+            showSuccessScreen();
         } else {
             alert('Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.');
         }
@@ -296,30 +309,18 @@ Comentarios: "${feedback}"`;
 function redirectToTelegram() {
     const messageText = document.getElementById('telegram-message-box').value;
     
-    // Copy message to clipboard
-    navigator.clipboard.writeText(messageText).then(() => {
-        // Show success indicator on button
-        const btn = document.getElementById('telegram-redirect-btn');
-        const originalHTML = btn.innerHTML;
-        
-        btn.innerHTML = `
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" class="icon-left" style="margin-right: 8px;">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-            </svg>
-            ¡Mensaje Copiado! Redirigiendo...
-        `;
-        
-        setTimeout(() => {
-            btn.innerHTML = originalHTML;
-        }, 2000);
+    // Copy to clipboard as a backup
+    try {
+        navigator.clipboard.writeText(messageText);
+    } catch (e) {
+        console.error('Backup copy failed:', e);
+    }
 
-        // Open Telegram chat
-        window.open('https://t.me/MartinRezende', '_blank');
-    }).catch(err => {
-        console.error('Error copying text:', err);
-        // Fallback: open anyway if copy fails
-        window.open('https://t.me/MartinRezende', '_blank');
-    });
+    // Generate Telegram share link with pre-filled message text
+    const shareUrl = `https://t.me/share/url?url=&text=${encodeURIComponent(messageText)}`;
+    
+    // Open Telegram share dialog
+    window.open(shareUrl, '_blank');
 }
 
 function resetForm() {
