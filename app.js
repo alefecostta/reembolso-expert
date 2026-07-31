@@ -299,10 +299,17 @@ Comentarios: "${feedback}"`;
             body: JSON.stringify(newRequest)
         });
 
-        if (response.status === 200) {
+        if (response.status === 200 || response.ok) {
             showSuccessScreen();
         } else {
-            alert('Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.');
+            let errorMsg = 'Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.';
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.error) {
+                    errorMsg += `\n\nDetalles: ${errorData.error}`;
+                }
+            } catch (e) {}
+            alert(errorMsg);
         }
     } catch (err) {
         console.error('Error submitting form:', err);

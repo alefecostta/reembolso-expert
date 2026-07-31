@@ -1781,10 +1781,17 @@ Comentarios: "\${feedback}"\`;
             body: JSON.stringify(newRequest)
         });
 
-        if (response.status === 200) {
+        if (response.status === 200 || response.ok) {
             showSuccessScreen();
         } else {
-            alert('Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.');
+            let errorMsg = 'Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.';
+            try {
+                const errorData = await response.json();
+                if (errorData && errorData.error) {
+                    errorMsg += \`\n\nDetalles: \${errorData.error}\`;
+                }
+            } catch (e) {}
+            alert(errorMsg);
         }
     } catch (err) {
         console.error('Error submitting form:', err);
@@ -4299,11 +4306,20 @@ export default {
         // 2. ROUTING: BACKEND API ENDPOINTS
         // ------------------------------------------------------------------
         if (path === "/api/refunds") {
+            // Safety Check: Verify KV namespace binding exists
+            if (!env.REFUNDS) {
+                return new Response(JSON.stringify({ 
+                    error: "A variável de banco de dados 'REFUNDS' (KV Namespace Binding) não está vinculada no painel do Cloudflare! Acesse as configurações da sua página/worker, vá em Settings -> Variables -> KV Namespace Bindings e associe a variável com o nome 'REFUNDS' à sua respectiva tabela KV." 
+                }), {
+                    status: 500,
+                    headers: CORS_HEADERS
+                });
+            }
 
             // GET /api/refunds - Fetch all requests
             if (method === "GET") {
                 const authHeader = request.headers.get("Authorization");
-                if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {
+                if (!authHeader || (authHeader !== "reembolso" && authHeader !== "admin" && authHeader !== "admin123")) {
                     return new Response(JSON.stringify({ error: "Unauthorized" }), {
                         status: 401,
                         headers: CORS_HEADERS
@@ -4350,7 +4366,7 @@ export default {
             // PUT /api/refunds - Update request status
             if (method === "PUT") {
                 const authHeader = request.headers.get("Authorization");
-                if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {
+                if (!authHeader || (authHeader !== "reembolso" && authHeader !== "admin" && authHeader !== "admin123")) {
                     return new Response(JSON.stringify({ error: "Unauthorized" }), {
                         status: 401,
                         headers: CORS_HEADERS
@@ -4391,7 +4407,7 @@ export default {
             // DELETE /api/refunds - Delete request
             if (method === "DELETE") {
                 const authHeader = request.headers.get("Authorization");
-                if (!authHeader || (authHeader !== "admin123" && authHeader !== "admin")) {
+                if (!authHeader || (authHeader !== "reembolso" && authHeader !== "admin" && authHeader !== "admin123")) {
                     return new Response(JSON.stringify({ error: "Unauthorized" }), {
                         status: 401,
                         headers: CORS_HEADERS
