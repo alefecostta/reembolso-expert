@@ -41,11 +41,47 @@ function showStep(step) {
             node.classList.add('completed');
         }
     });
+
+    // Control buttons visibility and text
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    
+    if (prevBtn) {
+        prevBtn.style.display = step === 1 ? 'none' : 'inline-flex';
+    }
+    
+    if (nextBtn) {
+        if (step === totalSteps) {
+            nextBtn.innerHTML = `
+                Enviar Solicitud
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-right">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            `;
+        } else {
+            nextBtn.innerHTML = `
+                Siguiente
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="icon-right">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            `;
+        }
+    }
     
     // Smooth scroll to top of wizard
     const container = document.querySelector('.card-glass');
     if (container) {
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function navigateSteps(direction) {
+    if (direction === 1) {
+        nextStep();
+    } else if (direction === -1) {
+        prevStep();
     }
 }
 
@@ -75,17 +111,7 @@ function validateStep(step) {
     let isValid = true;
     
     if (step === 1) {
-        // Step 1: Must select at least one product
-        const errorEl = document.getElementById('product-selection-error');
-        if (selectedProducts.length === 0) {
-            errorEl.style.display = 'block';
-            isValid = false;
-        } else {
-            errorEl.style.display = 'none';
-        }
-    } 
-    else if (step === 2) {
-        // Step 2: Customer Personal Details
+        // Step 1: Customer Personal Details
         const nameInput = document.getElementById('client-name');
         const emailInput = document.getElementById('client-email');
         
@@ -110,6 +136,16 @@ function validateStep(step) {
             clearInputError(emailInput);
         }
     } 
+    else if (step === 2) {
+        // Step 2: Must select at least one product
+        const errorEl = document.getElementById('product-error');
+        if (selectedProducts.length === 0) {
+            if (errorEl) errorEl.style.display = 'block';
+            isValid = false;
+        } else {
+            if (errorEl) errorEl.style.display = 'none';
+        }
+    } 
     else if (step === 3) {
         // Step 3: Refund Reason
         const reasonSelect = document.getElementById('refund-reason');
@@ -131,7 +167,6 @@ function validateStep(step) {
         }
         
         if (!termsCheck.checked) {
-            const termsLabel = termsCheck.closest('.checkbox-container');
             showInputError(termsCheck, 'Debes aceptar los términos de procesamiento para continuar.');
             isValid = false;
         } else {
@@ -146,23 +181,26 @@ function validateStep(step) {
    PRODUCT SELECTION HANDLERS
    ========================================================================== */
 
-function toggleProduct(productId, productName, imgPath) {
-    const card = document.querySelector(`.product-card[data-id="${productId}"]`);
+function toggleProduct(element) {
+    const productId = element.getAttribute('data-product-id');
+    const productName = element.querySelector('.product-name').innerText;
+    const imgPath = element.querySelector('.product-image').getAttribute('src');
+    
     const index = selectedProducts.findIndex(p => p.id === productId);
     
     if (index === -1) {
         // Add to selections
         selectedProducts.push({ id: productId, name: productName, image: imgPath });
-        card.classList.add('selected');
+        element.classList.add('selected');
     } else {
         // Remove from selections
         selectedProducts.splice(index, 1);
-        card.classList.remove('selected');
+        element.classList.remove('selected');
     }
     
     // Clear validation error if any
-    const errorEl = document.getElementById('product-selection-error');
-    if (selectedProducts.length > 0) {
+    const errorEl = document.getElementById('product-error');
+    if (errorEl && selectedProducts.length > 0) {
         errorEl.style.display = 'none';
     }
     
@@ -171,6 +209,7 @@ function toggleProduct(productId, productName, imgPath) {
 
 function updateSummaryList() {
     const listContainer = document.getElementById('selected-summary-list');
+    if (!listContainer) return;
     listContainer.innerHTML = '';
     
     if (selectedProducts.length === 0) {
@@ -185,7 +224,7 @@ function updateSummaryList() {
                 <img src="${prod.image}" alt="${prod.name}" style="width: 30px; height: 18px; border-radius: 3px; object-fit: cover;">
                 <span>${prod.name}</span>
             </div>
-            <button type="button" class="remove-summary-item-btn" onclick="toggleProduct('${prod.id}', '${prod.name}', '${prod.image}')">
+            <button type="button" class="remove-summary-item-btn" onclick="removeProductById('${prod.id}')">
                 <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -194,6 +233,16 @@ function updateSummaryList() {
         `;
         listContainer.appendChild(li);
     });
+}
+
+function removeProductById(productId) {
+    const card = document.querySelector(`.product-card[data-product-id="${productId}"]`);
+    if (card) {
+        toggleProduct(card);
+    } else {
+        selectedProducts = selectedProducts.filter(p => p.id !== productId);
+        updateSummaryList();
+    }
 }
 
 /* ==========================================================================
@@ -260,7 +309,6 @@ Comentarios: "${feedback}"`;
     }
     
     try {
-        // Send request to Google Sheets or relative local server API
         const url = DATABASE_URL || '/api/refunds';
         
         const response = await fetch(url, {
@@ -268,7 +316,6 @@ Comentarios: "${feedback}"`;
             body: JSON.stringify(newRequest)
         });
 
-        // If using Google Sheets, it returns 200 on success. If local server, 200 is also correct.
         if (response.status === 200 || response.ok) {
             showSuccessScreen();
         } else {
