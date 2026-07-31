@@ -48,7 +48,7 @@ function showDashboard() {
    AUTHENTICATION LOGIC
    ========================================================================== */
 
-async function loginAdmin() {
+function loginAdmin() {
     const passwordInput = document.getElementById('admin-password');
     const password = passwordInput.value.trim();
     const errorEl = document.getElementById('login-error');
@@ -59,41 +59,15 @@ async function loginAdmin() {
         return;
     }
 
-    // Local file protocol simulation (allows double-clicking file offline)
-    if (window.location.protocol === 'file:') {
-        if (password === 'reembolso' || password === 'admin') {
-            adminPassword = password;
-            sessionStorage.setItem('admin_password', password);
-            showDashboard();
-            passwordInput.value = '';
-        } else {
-            errorEl.style.display = 'block';
-            passwordInput.select();
-        }
-        return;
-    }
-
-    try {
-        // Verify password by attempting to fetch data
-        const response = await fetch(`${API_BASE}/api/refunds`, {
-            method: 'GET',
-            headers: {
-                'Authorization': password
-            }
-        });
-
-        if (response.status === 200) {
-            adminPassword = password;
-            sessionStorage.setItem('admin_password', password);
-            showDashboard();
-            passwordInput.value = '';
-        } else {
-            errorEl.style.display = 'block';
-            passwordInput.select();
-        }
-    } catch (err) {
-        console.error('Error logging in:', err);
-        alert('Ocurrió un error al intentar conectar con el servidor.');
+    // Client-side local passwords check (completely serverless login)
+    if (password === 'reembolso' || password === 'admin' || password === 'admin123') {
+        adminPassword = password;
+        sessionStorage.setItem('admin_password', password);
+        showDashboard();
+        passwordInput.value = '';
+    } else {
+        errorEl.style.display = 'block';
+        passwordInput.select();
     }
 }
 

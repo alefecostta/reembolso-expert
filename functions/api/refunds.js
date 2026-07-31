@@ -7,7 +7,7 @@ export async function onRequestGet(context) {
     
     // Check Authorization header for password validation
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
+    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin' && authHeader !== 'admin123')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
@@ -63,7 +63,7 @@ export async function onRequestPut(context) {
 
     // Check Authorization
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
+    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin' && authHeader !== 'admin123')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
@@ -110,7 +110,7 @@ export async function onRequestDelete(context) {
 
     // Check Authorization
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
+    if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin' && authHeader !== 'admin123')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
