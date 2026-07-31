@@ -70,6 +70,12 @@ async function loginAdmin() {
         return;
     }
 
+    // Check if database URL is missing when hosted on Netlify/web
+    if (!DATABASE_URL && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        alert('Erro: Banco de dados não configurado! Você precisa configurar a URL da sua Planilha do Google na variável DATABASE_URL no topo do arquivo admin.js para conseguir fazer login.');
+        return;
+    }
+
     try {
         // Verify password by attempting to fetch data
         const url = DATABASE_URL 
@@ -96,8 +102,12 @@ async function loginAdmin() {
             showDashboard();
             passwordInput.value = '';
         } else {
-            errorEl.style.display = 'block';
-            passwordInput.select();
+            if (response.status === 404) {
+                alert('Erro: Banco de dados não encontrado (404). Verifique se configurou a URL da planilha corretamente.');
+            } else {
+                errorEl.style.display = 'block';
+                passwordInput.select();
+            }
         }
     } catch (err) {
         console.error('Error logging in:', err);
