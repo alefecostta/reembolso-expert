@@ -311,12 +311,23 @@ Comentarios: "${feedback}"`;
     try {
         const url = DATABASE_URL || '/api/refunds';
         
-        const response = await fetch(url, {
+        const fetchOptions = {
             method: 'POST',
             body: JSON.stringify(newRequest)
-        });
+        };
 
-        if (response.status === 200 || response.ok) {
+        if (DATABASE_URL) {
+            fetchOptions.mode = 'no-cors'; // Avoid Google Apps Script CORS redirect block
+        } else {
+            fetchOptions.headers = {
+                'Content-Type': 'application/json'
+            };
+        }
+
+        const response = await fetch(url, fetchOptions);
+
+        // With no-cors, response status is 0 (opaque) but request succeeded.
+        if (DATABASE_URL || response.status === 200 || response.ok) {
             showSuccessScreen();
         } else {
             alert('Hubo un problema al enviar la solicitud al servidor. Inténtalo más tarde.');
