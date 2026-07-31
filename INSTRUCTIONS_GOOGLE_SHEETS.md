@@ -12,19 +12,111 @@ Para remover completamente a dependência do Cloudflare e gerenciar todas as sol
 
 ```javascript
 // CONFIGURAÇÕES
-const SENHA_ADMIN = "admin123"; // Senha do seu painel administrativo
+const SENHA_ADMIN = "reembolso"; // Senha do seu painel administrativo
 
 function doPost(e) {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
+
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const data = JSON.parse(e.postData.contents);
+    const action = data.action;
+
+    // 1. AÇÃO: LER SOLICITAÇÕES
+    if (action === "read") {
+      const password = data.password;
+      if (password !== SENHA_ADMIN && password !== "admin") {
+        return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
+          .setMimeType(ContentService.MimeType.JSON)
+          .setHeaders(headers);
+      }
+      
+      const rows = sheet.getDataRange().getValues();
+      const list = [];
+      
+      if (rows.length > 1) {
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          list.push({
+            id: row[0],
+            name: row[1],
+            email: row[2],
+            products: [{ name: row[3] }],
+            reasonText: row[4],
+            feedback: row[5],
+            date: row[6],
+            status: row[7]
+          });
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify(list))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeaders(headers);
+    }
     
-    // Se a tabela estiver vazia, cria os cabeçalhos
+    // 2. AÇÃO: ATUALIZAR STATUS
+    if (action === "update") {
+      const password = data.password;
+      if (password !== SENHA_ADMIN && password !== "admin") {
+        return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
+          .setMimeType(ContentService.MimeType.JSON)
+          .setHeaders(headers);
+      }
+      
+      const id = data.id;
+      const status = data.status;
+      const rows = sheet.getDataRange().getValues();
+      let updated = false;
+      
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === id) {
+          sheet.getRange(i + 1, 8).setValue(status); // Coluna H
+          updated = true;
+          break;
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ result: updated ? "success" : "not_found" }))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeaders(headers);
+    }
+    
+    // 3. AÇÃO: EXCLUIR REGISTRO
+    if (action === "delete") {
+      const password = data.password;
+      if (password !== SENHA_ADMIN && password !== "admin") {
+        return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
+          .setMimeType(ContentService.MimeType.JSON)
+          .setHeaders(headers);
+      }
+      
+      const id = data.id;
+      const rows = sheet.getDataRange().getValues();
+      let deleted = false;
+      
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === id) {
+          sheet.deleteRow(i + 1);
+          deleted = true;
+          break;
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ result: deleted ? "success" : "not_found" }))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeaders(headers);
+    }
+
+    // REGISTRO PADRÃO: INSERIR SOLICITAÇÃO (quando vem do formulário do cliente)
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(["Ticket ID", "Nome", "E-mail", "Produtos", "Motivo", "Comentários", "Data", "Status"]);
     }
     
-    // Adiciona nova linha
     sheet.appendRow([
       data.id,
       data.name,
@@ -38,118 +130,22 @@ function doPost(e) {
     
     return ContentService.createTextOutput(JSON.stringify({ result: "success", id: data.id }))
       .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-      });
+      .setHeaders(headers);
+
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
       .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders({
-        'Access-Control-Allow-Origin': '*'
-      });
+      .setHeaders(headers);
   }
 }
 
 function doGet(e) {
-  const params = e.parameter;
-  const action = params.action;
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-  };
-
-  // 1. LER SOLICITAÇÕES
-  if (action === "read") {
-    const password = params.password;
-    if (password !== SENHA_ADMIN && password !== "admin") {
-      return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
-    }
-    
-    const rows = sheet.getDataRange().getValues();
-    const list = [];
-    
-    if (rows.length > 1) {
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        list.push({
-          id: row[0],
-          name: row[1],
-          email: row[2],
-          products: [{ name: row[3] }],
-          reasonText: row[4],
-          feedback: row[5],
-          date: row[6],
-          status: row[7]
-        });
-      }
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify(list))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
-  }
-  
-  // 2. ATUALIZAR STATUS
-  if (action === "update") {
-    const password = params.password;
-    if (password !== SENHA_ADMIN && password !== "admin") {
-      return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
-    }
-    
-    const id = params.id;
-    const status = params.status;
-    const rows = sheet.getDataRange().getValues();
-    let updated = false;
-    
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === id) {
-        sheet.getRange(i + 1, 8).setValue(status); // Coluna H
-        updated = true;
-        break;
-      }
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ result: updated ? "success" : "not_found" }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
-  }
-  
-  // 3. EXCLUIR REGISTRO
-  if (action === "delete") {
-    const password = params.password;
-    if (password !== SENHA_ADMIN && password !== "admin") {
-      return ContentService.createTextOutput(JSON.stringify({ error: "Unauthorized" }))
-        .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(headers);
-    }
-    
-    const id = params.id;
-    const rows = sheet.getDataRange().getValues();
-    let deleted = false;
-    
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === id) {
-        sheet.deleteRow(i + 1);
-        deleted = true;
-        break;
-      }
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({ result: deleted ? "success" : "not_found" }))
-      .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(headers);
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({ error: "Invalid action" }))
+  return ContentService.createTextOutput(JSON.stringify({ error: "Utilize requisições POST para interagir com a API." }))
     .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(headers);
+    .setHeaders({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    });
 }
 ```
 

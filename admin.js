@@ -77,16 +77,12 @@ async function loginAdmin() {
     }
 
     try {
-        // Verify password by attempting to fetch data
-        const url = DATABASE_URL 
-            ? `${DATABASE_URL}?action=read&password=${encodeURIComponent(password)}`
-            : '/api/refunds';
-            
-        const headers = DATABASE_URL ? {} : { 'Authorization': password };
-
+        // Verify password by attempting to fetch data (CORS safe POST request)
+        const url = DATABASE_URL || '/api/refunds';
         const response = await fetch(url, {
-            method: 'GET',
-            headers: headers
+            method: DATABASE_URL ? 'POST' : 'GET',
+            headers: DATABASE_URL ? {} : { 'Authorization': password },
+            body: DATABASE_URL ? JSON.stringify({ action: 'read', password: password }) : null
         });
 
         if (response.status === 200 || response.ok) {
@@ -171,15 +167,11 @@ async function fetchRefundRequests() {
     }
 
     try {
-        const url = DATABASE_URL 
-            ? `${DATABASE_URL}?action=read&password=${encodeURIComponent(adminPassword)}`
-            : '/api/refunds';
-            
-        const headers = DATABASE_URL ? {} : { 'Authorization': adminPassword };
-
+        const url = DATABASE_URL || '/api/refunds';
         const response = await fetch(url, {
-            method: 'GET',
-            headers: headers
+            method: DATABASE_URL ? 'POST' : 'GET',
+            headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
+            body: DATABASE_URL ? JSON.stringify({ action: 'read', password: adminPassword }) : null
         });
 
         if (response.status === 200 || response.ok) {
@@ -223,20 +215,16 @@ async function changeRequestStatus(requestId, newStatus) {
     }
 
     try {
-        const url = DATABASE_URL
-            ? `${DATABASE_URL}?action=update&id=${encodeURIComponent(requestId)}&status=${encodeURIComponent(newStatus)}&password=${encodeURIComponent(adminPassword)}`
-            : '/api/refunds';
-            
+        const url = DATABASE_URL || '/api/refunds';
         const response = await fetch(url, {
-            method: DATABASE_URL ? 'GET' : 'PUT', // Apps Script does GET/POST redirects cleanly
+            method: DATABASE_URL ? 'POST' : 'PUT',
             headers: DATABASE_URL ? {} : {
                 'Content-Type': 'application/json',
                 'Authorization': adminPassword
             },
-            body: DATABASE_URL ? null : JSON.stringify({
-                id: requestId,
-                status: newStatus
-            })
+            body: DATABASE_URL 
+                ? JSON.stringify({ action: 'update', id: requestId, status: newStatus, password: adminPassword })
+                : JSON.stringify({ id: requestId, status: newStatus })
         });
 
         if (response.status === 200 || response.ok) {
@@ -267,15 +255,11 @@ async function deleteRequest(requestId) {
     }
 
     try {
-        const url = DATABASE_URL
-            ? `${DATABASE_URL}?action=delete&id=${encodeURIComponent(requestId)}&password=${encodeURIComponent(adminPassword)}`
-            : `/api/refunds?id=${encodeURIComponent(requestId)}`;
-            
+        const url = DATABASE_URL || `/api/refunds?id=${encodeURIComponent(requestId)}`;
         const response = await fetch(url, {
-            method: DATABASE_URL ? 'GET' : 'DELETE',
-            headers: DATABASE_URL ? {} : {
-                'Authorization': adminPassword
-            }
+            method: DATABASE_URL ? 'POST' : 'DELETE',
+            headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
+            body: DATABASE_URL ? JSON.stringify({ action: 'delete', id: requestId, password: adminPassword }) : null
         });
 
         if (response.status === 200 || response.ok) {
@@ -472,17 +456,16 @@ async function handleBulkStatus(newStatus) {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const url = DATABASE_URL
-                ? `${DATABASE_URL}?action=update&id=${encodeURIComponent(id)}&status=${encodeURIComponent(newStatus)}&password=${encodeURIComponent(adminPassword)}`
-                : '/api/refunds';
-                
+            const url = DATABASE_URL || '/api/refunds';
             const response = await fetch(url, {
-                method: DATABASE_URL ? 'GET' : 'PUT',
+                method: DATABASE_URL ? 'POST' : 'PUT',
                 headers: DATABASE_URL ? {} : {
                     'Content-Type': 'application/json',
                     'Authorization': adminPassword
                 },
-                body: DATABASE_URL ? null : JSON.stringify({ id, status: newStatus })
+                body: DATABASE_URL 
+                    ? JSON.stringify({ action: 'update', id, status: newStatus, password: adminPassword })
+                    : JSON.stringify({ id, status: newStatus })
             });
             if (response.status === 200 || response.ok) successCount++;
         } catch (err) {
@@ -513,15 +496,11 @@ async function handleBulkDelete() {
     let successCount = 0;
     for (const id of selectedIds) {
         try {
-            const url = DATABASE_URL
-                ? `${DATABASE_URL}?action=delete&id=${encodeURIComponent(id)}&password=${encodeURIComponent(adminPassword)}`
-                : `/api/refunds?id=${encodeURIComponent(id)}`;
-                
+            const url = DATABASE_URL || `/api/refunds?id=${encodeURIComponent(id)}`;
             const response = await fetch(url, {
-                method: DATABASE_URL ? 'GET' : 'DELETE',
-                headers: DATABASE_URL ? {} : {
-                    'Authorization': adminPassword
-                }
+                method: DATABASE_URL ? 'POST' : 'DELETE',
+                headers: DATABASE_URL ? {} : { 'Authorization': adminPassword },
+                body: DATABASE_URL ? JSON.stringify({ action: 'delete', id, password: adminPassword }) : null
             });
             if (response.status === 200 || response.ok) successCount++;
         } catch (err) {
