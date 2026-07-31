@@ -1,8 +1,6 @@
 name = "reembolso-expert"
+main = "cloudflare-worker.js"
 compatibility_date = "2026-07-31"
-
-[assets]
-directory = "."
 
 [[kv_namespaces]]
 binding = "REFUNDS"
