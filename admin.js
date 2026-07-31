@@ -4,7 +4,7 @@
 
 // CONFIGURATION: Paste your Google Web App URL here to save data to Google Sheets
 // If left empty, it will default to relative local server paths (/api/refunds)
-const DATABASE_URL = ""; 
+const DATABASE_URL = "https://script.google.com/macros/s/AKfycbwEYfoHSL0-_HIzNm8jHZIy3H3fWdmm0QjiTQc_irtzoWoo9-LmsBmRGWlqtQhv9c05/exec"; 
 
 let adminPassword = '';
 let refundRequests = [];
