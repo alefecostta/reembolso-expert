@@ -64,7 +64,7 @@ const server = http.createServer((req, res) => {
         // GET /api/refunds
         if (method === 'GET') {
             const authHeader = req.headers['authorization'];
-            if (!authHeader || (authHeader !== 'admin123' && authHeader !== 'admin')) {
+            if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Unauthorized' }));
                 return;
@@ -100,7 +100,7 @@ const server = http.createServer((req, res) => {
         // PUT /api/refunds
         if (method === 'PUT') {
             const authHeader = req.headers['authorization'];
-            if (!authHeader || (authHeader !== 'admin123' && authHeader !== 'admin')) {
+            if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Unauthorized' }));
                 return;
@@ -132,7 +132,7 @@ const server = http.createServer((req, res) => {
         // DELETE /api/refunds
         if (method === 'DELETE') {
             const authHeader = req.headers['authorization'];
-            if (!authHeader || (authHeader !== 'admin123' && authHeader !== 'admin')) {
+            if (!authHeader || (authHeader !== 'reembolso' && authHeader !== 'admin')) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Unauthorized' }));
                 return;

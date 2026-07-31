@@ -58,7 +58,7 @@ async function loginAdmin() {
 
     // Local file protocol simulation (allows double-clicking file offline)
     if (window.location.protocol === 'file:') {
-        if (password === 'admin123' || password === 'admin') {
+        if (password === 'reembolso' || password === 'admin') {
             adminPassword = password;
             sessionStorage.setItem('admin_password', password);
             showDashboard();
